@@ -876,9 +876,10 @@ app.get('/auth/linkedin/callback', async (req, res) => {
 
 app.get('/api/oauth/status', (req, res) => {
     res.json({
-        meta:     !!(env('META_APP_ID') && env('META_APP_SECRET')),
-        tiktok:   !!(env('TIKTOK_APP_ID') && env('TIKTOK_APP_SECRET')),
-        linkedin: !!(env('LINKEDIN_CLIENT_ID') && env('LINKEDIN_CLIENT_SECRET'))
+        meta:      !!(env('META_APP_ID') && env('META_APP_SECRET')),
+        instagram: !!(env('INSTAGRAM_APP_ID') && env('INSTAGRAM_APP_SECRET')),
+        tiktok:    !!(env('TIKTOK_APP_ID') && env('TIKTOK_APP_SECRET')),
+        linkedin:  !!(env('LINKEDIN_CLIENT_ID') && env('LINKEDIN_CLIENT_SECRET'))
     });
 });
 

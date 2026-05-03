@@ -816,7 +816,7 @@ const OAUTH_LABELS = {
     LINKEDIN:  'Conectar com LinkedIn'
 };
 
-let oauthStatus = { meta: false, tiktok: false, linkedin: false };
+let oauthStatus = { meta: false, instagram: false, tiktok: false, linkedin: false };
 
 async function loadOAuthStatus() {
     try {
@@ -832,6 +832,7 @@ function renderOAuthSection(platform) {
     const color = OAUTH_COLORS[platform] || '#555';
     const label = OAUTH_LABELS[platform] || `Conectar ${platform}`;
     const configured = provider === 'meta' ? oauthStatus.meta
+                     : provider === 'instagram' ? oauthStatus.instagram
                      : provider === 'tiktok' ? oauthStatus.tiktok
                      : oauthStatus.linkedin;
 
@@ -843,7 +844,7 @@ function renderOAuthSection(platform) {
             <div class="alert alert-warning py-2 mb-0" style="font-size:.85rem;">
                 <i class="fas fa-exclamation-triangle mr-1"></i>
                 OAuth não configurado para ${platform}. Preencha as variáveis de ambiente no <code>.env</code>
-                (${provider === 'meta' ? 'META_APP_ID + META_APP_SECRET' : provider === 'tiktok' ? 'TIKTOK_APP_ID + TIKTOK_APP_SECRET' : 'LINKEDIN_CLIENT_ID + LINKEDIN_CLIENT_SECRET'})
+                (${provider === 'meta' ? 'META_APP_ID + META_APP_SECRET' : provider === 'instagram' ? 'INSTAGRAM_APP_ID + INSTAGRAM_APP_SECRET' : provider === 'tiktok' ? 'TIKTOK_APP_ID + TIKTOK_APP_SECRET' : 'LINKEDIN_CLIENT_ID + LINKEDIN_CLIENT_SECRET'})
                 e reinicie o servidor.
             </div>
         `);
