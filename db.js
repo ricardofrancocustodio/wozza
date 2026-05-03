@@ -103,6 +103,25 @@ async function ensureSchema() {
         CREATE INDEX IF NOT EXISTS idx_sp_school ON social_posts(school_id, published_at DESC)
     `;
 
+    await sql`ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS platform TEXT`;
+    await sql`ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS external_id TEXT`;
+    await sql`ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS content TEXT`;
+    await sql`ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS media_url TEXT`;
+    await sql`ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS thumbnail_url TEXT`;
+    await sql`ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS permalink TEXT`;
+    await sql`ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS media_type TEXT`;
+    await sql`ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS like_count INTEGER NOT NULL DEFAULT 0`;
+    await sql`ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS comments_count INTEGER NOT NULL DEFAULT 0`;
+    await sql`ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS account_username TEXT`;
+    await sql`ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS account_avatar TEXT`;
+    await sql`ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS synced_at TIMESTAMPTZ`;
+
+    await sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_sp_school_platform_external
+        ON social_posts(school_id, platform, external_id)
+        WHERE platform IS NOT NULL AND external_id IS NOT NULL
+    `;
+
     await sql`
         CREATE TABLE IF NOT EXISTS app_users (
             id                   TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -291,16 +310,14 @@ async function upsertConfig(schoolId, platform, fields) {
         VALUES (gen_random_uuid()::text, ${schoolId}, ${platform})
         ON CONFLICT (school_id, platform) DO NOTHING
     `;
-    const sets = Object.entries(fields);
-    // build dynamically: each field is a named update
     const row = await sql`
         UPDATE social_channel_configs SET
-            enabled                      = ${fields.enabled ?? null}::boolean,
+            enabled                      = COALESCE(${fields.enabled ?? null}::boolean, enabled),
             connection_status            = COALESCE(${fields.connection_status ?? null}, connection_status),
             account_label                = COALESCE(${fields.account_label ?? null}, account_label),
             webhook_verify_token         = COALESCE(${fields.webhook_verify_token ?? null}, webhook_verify_token),
-            auto_reply_enabled           = ${fields.auto_reply_enabled ?? null}::boolean,
-            notify_director_on_sensitive = ${fields.notify_director_on_sensitive ?? null}::boolean,
+            auto_reply_enabled           = COALESCE(${fields.auto_reply_enabled ?? null}::boolean, auto_reply_enabled),
+            notify_director_on_sensitive = COALESCE(${fields.notify_director_on_sensitive ?? null}::boolean, notify_director_on_sensitive),
             allowed_channels             = COALESCE(${fields.allowed_channels ?? null}, allowed_channels),
             metadata                     = COALESCE(${fields.metadata ?? null}, metadata),
             credentials_present          = COALESCE(${fields.credentials_present ?? null}, credentials_present),
@@ -429,8 +446,43 @@ async function upsertReplyConfig(schoolId, fields) {
 
 async function insertPost(post) {
     const rows = await sql`
-        INSERT INTO social_posts (id, school_id, post_text, media, results)
-        VALUES (gen_random_uuid()::text, ${post.school_id}, ${post.text}, ${JSON.stringify(post.media || null)}, ${JSON.stringify(post.results || [])})
+        INSERT INTO social_posts (id, school_id, post_text, content, media, results)
+        VALUES (gen_random_uuid()::text, ${post.school_id}, ${post.text}, ${post.text}, ${JSON.stringify(post.media || null)}, ${JSON.stringify(post.results || [])})
+        RETURNING *
+    `;
+    return rows[0];
+}
+
+async function upsertSyncedPost(post) {
+    const rows = await sql`
+        INSERT INTO social_posts (
+            id, school_id, platform, external_id, post_text, content, media, results,
+            published_at, media_url, thumbnail_url, permalink, media_type,
+            like_count, comments_count, account_username, account_avatar, synced_at
+        ) VALUES (
+            gen_random_uuid()::text,
+            ${post.school_id}, ${post.platform}, ${post.external_id}, ${post.content || ''}, ${post.content || ''},
+            ${JSON.stringify(post.media || null)}, ${JSON.stringify(post.results || [])},
+            ${post.published_at}::timestamptz, ${post.media_url || null}, ${post.thumbnail_url || null},
+            ${post.permalink || null}, ${post.media_type || null}, ${post.like_count || 0}, ${post.comments_count || 0},
+            ${post.account_username || null}, ${post.account_avatar || null}, now()
+        )
+        ON CONFLICT (school_id, platform, external_id) WHERE platform IS NOT NULL AND external_id IS NOT NULL
+        DO UPDATE SET
+            post_text        = EXCLUDED.post_text,
+            content          = EXCLUDED.content,
+            media            = EXCLUDED.media,
+            results          = EXCLUDED.results,
+            published_at     = EXCLUDED.published_at,
+            media_url        = EXCLUDED.media_url,
+            thumbnail_url    = EXCLUDED.thumbnail_url,
+            permalink        = EXCLUDED.permalink,
+            media_type       = EXCLUDED.media_type,
+            like_count       = EXCLUDED.like_count,
+            comments_count   = EXCLUDED.comments_count,
+            account_username = EXCLUDED.account_username,
+            account_avatar   = EXCLUDED.account_avatar,
+            synced_at        = now()
         RETURNING *
     `;
     return rows[0];
@@ -438,11 +490,26 @@ async function insertPost(post) {
 
 async function getPostsByDateRange(schoolId, from, to) {
     return sql`
-        SELECT * FROM social_posts
+        SELECT
+            *,
+            COALESCE(content, post_text, '') AS content
+        FROM social_posts
         WHERE school_id = ${schoolId}
           AND published_at >= ${from}::timestamptz
           AND published_at <= ${to}::timestamptz
         ORDER BY published_at DESC
+    `;
+}
+
+async function markFirstSocialConnectedBySchool(schoolId) {
+    await sql`
+        UPDATE onboarding_steps os SET
+            first_social_connected = true,
+            updated_at = now()
+        FROM account_members am
+        JOIN app_users u ON u.id = am.user_id
+        WHERE os.account_id = am.account_id
+          AND u.school_id = ${schoolId}
     `;
 }
 
@@ -723,7 +790,7 @@ module.exports = {
     insertMessage, updateMessage, getRecentMessages, countMessages,
     insertAlert, getOpenAlerts, closeAlertsForMessage, setAlertsInProgress,
     getReplyConfig, upsertReplyConfig,
-    insertPost, getPostsByDateRange,
+    insertPost, upsertSyncedPost, getPostsByDateRange,
     countAppUsers, findUserByEmail, findUserById, findUserByProvider,
     createInvitedUser, upsertSocialUser, setUserPassword,
     createPasswordToken, consumePasswordToken,
@@ -731,5 +798,5 @@ module.exports = {
     publicUser, normalizeEmail,
     PLATFORMS,
     getBillingPlans, getUserBillingStatus, selectPlanForUser,
-    getOnboardingStatus, dismissConnectSocial
+    getOnboardingStatus, dismissConnectSocial, markFirstSocialConnectedBySchool
 };

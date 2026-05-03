@@ -24,6 +24,7 @@ app.use('/dist', express.static(path.join(__dirname, 'public/dist')));
 // ─── Business logic ───────────────────────────────────────────────────────────
 
 const ALL_CHANNELS = ['DIRECT', 'POST_COMMENT', 'REEL_COMMENT', 'STORY_MENTION', 'PAGE_MESSAGE'];
+const META_GRAPH_BASE = 'https://graph.facebook.com/v19.0';
 
 function classifyMessage(text) {
     const t = String(text || '').toLowerCase();
@@ -128,6 +129,153 @@ async function fetchJson(url, opts = {}) {
     const text = await res.text();
     try { return { ok: res.ok, status: res.status, data: JSON.parse(text) }; }
     catch { return { ok: false, status: res.status, data: { error: text } }; }
+}
+
+function socialEncryptionKey() {
+    const value = process.env.ENCRYPTION_KEY;
+    if (!value) throw new Error('ENCRYPTION_KEY não configurado para salvar credenciais sociais');
+    return crypto.createHash('sha256').update(value).digest();
+}
+
+function encryptSocialCredentials(payload) {
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', socialEncryptionKey(), iv);
+    const encrypted = Buffer.concat([cipher.update(JSON.stringify(payload), 'utf8'), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    return ['v1', iv.toString('base64url'), tag.toString('base64url'), encrypted.toString('base64url')].join('.');
+}
+
+function decryptSocialCredentials(value) {
+    const [version, ivValue, tagValue, encryptedValue] = String(value || '').split('.');
+    if (version !== 'v1' || !ivValue || !tagValue || !encryptedValue) throw new Error('Credenciais sociais inválidas');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', socialEncryptionKey(), Buffer.from(ivValue, 'base64url'));
+    decipher.setAuthTag(Buffer.from(tagValue, 'base64url'));
+    const decrypted = Buffer.concat([decipher.update(Buffer.from(encryptedValue, 'base64url')), decipher.final()]);
+    return JSON.parse(decrypted.toString('utf8'));
+}
+
+async function fetchMeta(pathname, accessToken, params = {}) {
+    const query = new URLSearchParams({ ...params, access_token: accessToken });
+    return fetchJson(`${META_GRAPH_BASE}/${pathname.replace(/^\//, '')}?${query}`);
+}
+
+function graphPageInfo(page) {
+    return {
+        page_id: page?.id || null,
+        page_name: page?.name || null,
+        instagram_business_id: page?.instagram_business_account?.id || null
+    };
+}
+
+function normalizeInstagramPost(raw, schoolId, metadata) {
+    return {
+        school_id: schoolId,
+        platform: 'INSTAGRAM',
+        external_id: raw.id,
+        content: raw.caption || '',
+        media_url: raw.media_url || null,
+        thumbnail_url: raw.thumbnail_url || raw.media_url || null,
+        permalink: raw.permalink || null,
+        media_type: raw.media_type || null,
+        like_count: Number(raw.like_count || 0),
+        comments_count: Number(raw.comments_count || 0),
+        account_username: raw.username || metadata?.page_name || 'Instagram',
+        account_avatar: null,
+        published_at: raw.timestamp || new Date().toISOString(),
+        media: raw.media_url ? { url: raw.media_url, thumbnail_url: raw.thumbnail_url || raw.media_url, type: raw.media_type || null } : null,
+        results: [{ platform: 'INSTAGRAM', externalId: raw.id, success: true, source: 'sync' }]
+    };
+}
+
+function normalizeFacebookPost(raw, schoolId, metadata) {
+    const mediaUrl = raw.full_picture || raw.attachments?.data?.[0]?.media?.image?.src || null;
+    return {
+        school_id: schoolId,
+        platform: 'FACEBOOK',
+        external_id: raw.id,
+        content: raw.message || raw.story || '',
+        media_url: mediaUrl,
+        thumbnail_url: mediaUrl,
+        permalink: raw.permalink_url || null,
+        media_type: raw.attachments?.data?.[0]?.type || null,
+        like_count: Number(raw.reactions?.summary?.total_count || 0),
+        comments_count: Number(raw.comments?.summary?.total_count || 0),
+        account_username: metadata?.page_name || 'Facebook',
+        account_avatar: null,
+        published_at: raw.created_time || new Date().toISOString(),
+        media: mediaUrl ? { url: mediaUrl, thumbnail_url: mediaUrl, type: raw.attachments?.data?.[0]?.type || null } : null,
+        results: [{ platform: 'FACEBOOK', externalId: raw.id, success: true, source: 'sync' }]
+    };
+}
+
+async function syncMetaPostsForConfig(config) {
+    if (!config?.credentials_encrypted) throw new Error('Credenciais Meta não encontradas para este canal');
+    const credentials = decryptSocialCredentials(config.credentials_encrypted);
+    const metadata = config.metadata || {};
+    const accessToken = credentials.page_access_token || credentials.access_token;
+    const summary = { platform: config.platform, synced: 0, warnings: [] };
+
+    if (config.platform === 'INSTAGRAM') {
+        if (!metadata.instagram_business_id) {
+            summary.warnings.push('Conta Instagram Business não encontrada na página Meta conectada.');
+            return summary;
+        }
+        const mediaRes = await fetchMeta(`${metadata.instagram_business_id}/media`, accessToken, {
+            fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count,username',
+            limit: '50'
+        });
+        if (!mediaRes.ok) throw new Error(mediaRes.data?.error?.message || 'Falha ao buscar posts do Instagram');
+        for (const item of mediaRes.data?.data || []) {
+            await db.upsertSyncedPost(normalizeInstagramPost(item, config.school_id, metadata));
+            summary.synced += 1;
+        }
+        return summary;
+    }
+
+    if (config.platform === 'FACEBOOK') {
+        if (!metadata.page_id) {
+            summary.warnings.push('Página Facebook não encontrada na conexão Meta.');
+            return summary;
+        }
+        const postsRes = await fetchMeta(`${metadata.page_id}/posts`, accessToken, {
+            fields: 'id,message,story,created_time,permalink_url,full_picture,attachments{media,type,url},comments.summary(true),reactions.summary(true)',
+            limit: '50'
+        });
+        if (!postsRes.ok) throw new Error(postsRes.data?.error?.message || 'Falha ao buscar posts do Facebook');
+        for (const item of postsRes.data?.data || []) {
+            await db.upsertSyncedPost(normalizeFacebookPost(item, config.school_id, metadata));
+            summary.synced += 1;
+        }
+        return summary;
+    }
+
+    summary.warnings.push(`Plataforma ${config.platform} ainda não possui sincronização Meta.`);
+    return summary;
+}
+
+async function syncMetaPosts(schoolId, platform) {
+    const platforms = platform ? [platform] : ['INSTAGRAM', 'FACEBOOK'];
+    const results = [];
+    const warnings = [];
+    for (const currentPlatform of platforms) {
+        const config = await db.getConfig(schoolId, currentPlatform);
+        if (!config || config.connection_status !== 'CONNECTED') {
+            warnings.push(`${currentPlatform}: canal não conectado.`);
+            continue;
+        }
+        try {
+            const result = await syncMetaPostsForConfig(config);
+            results.push(result);
+            warnings.push(...(result.warnings || []).map((warning) => `${currentPlatform}: ${warning}`));
+            await db.upsertConfig(schoolId, currentPlatform, {
+                enabled: true,
+                metadata: JSON.stringify({ ...(config.metadata || {}), last_sync_at: new Date().toISOString(), last_sync_result: result })
+            });
+        } catch (err) {
+            warnings.push(`${currentPlatform}: ${err.message}`);
+        }
+    }
+    return { results, warnings, synced: results.reduce((total, item) => total + (item.synced || 0), 0) };
 }
 
 // ─── App auth helpers ────────────────────────────────────────────────────────
@@ -461,7 +609,7 @@ app.get('/auth/facebook/callback', async (req, res) => {
 
 const META_SCOPES = [
     'instagram_basic', 'instagram_manage_messages', 'instagram_manage_comments',
-    'pages_manage_metadata', 'pages_read_engagement', 'pages_messaging', 'business_management'
+    'pages_show_list', 'pages_manage_metadata', 'pages_read_engagement', 'pages_messaging', 'business_management'
 ].join(',');
 
 app.get('/auth/meta/start', (req, res) => {
@@ -502,19 +650,33 @@ app.get('/auth/meta/callback', async (req, res) => {
         const accessToken = longRes.ok ? longRes.data.access_token : shortToken;
 
         const pagesRes = await fetchJson(
-            `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}&fields=id,name,instagram_business_account`
+            `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}&fields=id,name,access_token,instagram_business_account`
         );
         const pages = pagesRes.ok ? (pagesRes.data.data || []) : [];
         const firstPage = pages[0] || {};
-        const igAccountId = firstPage.instagram_business_account?.id || null;
+        const pageInfo = graphPageInfo(firstPage);
+        const savedAt = new Date().toISOString();
+        const credentialsEncrypted = encryptSocialCredentials({
+            provider: 'meta',
+            access_token: accessToken,
+            page_access_token: firstPage.access_token || accessToken,
+            token_type: longRes.ok ? longRes.data.token_type || null : tokenRes.data.token_type || null,
+            expires_in: longRes.ok ? longRes.data.expires_in || null : tokenRes.data.expires_in || null,
+            saved_at: savedAt
+        });
 
-        await db.upsertConfig(schoolId, platform, {
+        const config = await db.upsertConfig(schoolId, platform, {
             enabled: true,
             connection_status: 'CONNECTED',
             account_label: firstPage.name || null,
             credentials_present: JSON.stringify({ access_token: true, refresh_token: false, app_secret: false }),
-            metadata: JSON.stringify({ page_id: firstPage.id || null, page_name: firstPage.name || null, instagram_business_id: igAccountId })
+            credentials_encrypted: credentialsEncrypted,
+            metadata: JSON.stringify({ ...pageInfo, connected_at: savedAt })
         });
+
+        await db.markFirstSocialConnectedBySchool(schoolId);
+        const syncResult = await syncMetaPosts(schoolId, config.platform);
+        if (syncResult.warnings.length) console.warn('Meta initial sync warnings:', syncResult.warnings);
 
         res.redirect(`/social-monitor?oauth_ok=${encodeURIComponent(platform)}&school_id=${encodeURIComponent(schoolId)}`);
     } catch (err) {
@@ -892,6 +1054,27 @@ app.post('/api/social/post-multi', async (req, res) => {
     try {
         const post = await db.insertPost({ school_id: schoolId, text: conteudo.text, media: conteudo.media || null, results });
         return res.json({ resultado, post });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/social/sync-posts', async (req, res) => {
+    try {
+        const user = await requireCurrentUser(req);
+        if (!user) return res.status(401).json({ error: 'Não autenticado' });
+
+        const body = req.body || {};
+        const schoolId = String(body.school_id || user.school_id || '').trim();
+        const platform = body.platform ? String(body.platform).trim().toUpperCase() : null;
+        if (!schoolId) return res.status(400).json({ error: 'school_id é obrigatório' });
+        if (schoolId !== user.school_id) return res.status(403).json({ error: 'school_id não pertence ao usuário autenticado' });
+        if (platform && !['INSTAGRAM', 'FACEBOOK'].includes(platform)) {
+            return res.status(400).json({ error: 'platform deve ser INSTAGRAM ou FACEBOOK' });
+        }
+
+        const syncResult = await syncMetaPosts(schoolId, platform);
+        return res.json({ ok: true, ...syncResult });
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }

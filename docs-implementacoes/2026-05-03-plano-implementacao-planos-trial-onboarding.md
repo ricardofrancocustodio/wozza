@@ -538,6 +538,75 @@ Esses limites devem ser armazenados em `billing_plans` para permitir ajuste sem 
 
 ## Ordem de implementacao recomendada
 
+### Fase tecnica imediata - Meta Sync Fase 1
+Objetivo: fazer a conexao Meta gerar valor operacional real logo apos o OAuth, preenchendo o calendario/feed com postagens reais do Instagram/Facebook autorizados pelo cliente.
+
+Escopo desta entrega:
+
+- Salvar credenciais Meta de forma criptografada em `social_channel_configs.credentials_encrypted`.
+- Adicionar a variavel `ENCRYPTION_KEY` para cifrar tokens de canais sociais.
+- Guardar metadados uteis da conexao Meta:
+  - `page_id`
+  - `page_name`
+  - `instagram_business_id`
+  - `last_sync_at`
+  - resumo da ultima sincronizacao
+- Expandir `social_posts` para armazenar postagens reais por rede:
+  - `platform`
+  - `external_id`
+  - `content`
+  - `media_url`
+  - `thumbnail_url`
+  - `permalink`
+  - `media_type`
+  - `like_count`
+  - `comments_count`
+  - `account_username`
+  - `account_avatar`
+  - `synced_at`
+- Criar upsert por `school_id + platform + external_id`, evitando duplicar postagens em sincronizacoes repetidas.
+- Sincronizar posts iniciais automaticamente ao concluir `/auth/meta/callback`.
+- Criar endpoint manual `POST /api/social/sync-posts` para atualizar o calendario quando necessario.
+- Manter `/api/social/posts` como fonte unica do calendario/feed, agora retornando tambem posts sincronizados da Meta.
+
+Fora do escopo desta entrega:
+
+- Publicacao real em Facebook/Instagram.
+- Edicao/exclusao real de legenda/post na Meta.
+- Busca completa de comentarios e respostas reais.
+- Webhooks Meta com validacao e ingestao automatica.
+- Renovacao/rotacao automatica de tokens.
+
+Comportamento esperado:
+
+```text
+Usuario conecta Instagram/Facebook
+  -> Meta OAuth retorna token
+  -> Wozza troca por token de longa duracao quando possivel
+  -> Wozza busca paginas e conta Instagram Business
+  -> Wozza salva credencial criptografada
+  -> Wozza sincroniza posts recentes
+  -> Usuario volta para o Monitor Social
+  -> Calendario/feed exibe postagens reais sincronizadas
+```
+
+Criterio de aceite:
+
+- Sem `ENCRYPTION_KEY`, o backend nao deve salvar token social em texto puro.
+- Ao conectar Meta com permissoes validas, `social_channel_configs.credentials_encrypted` deve ser preenchido.
+- Ao conectar Meta, posts recentes devem ser inseridos/atualizados em `social_posts`.
+- Reexecutar a sincronizacao nao deve duplicar posts.
+- `/api/social/posts` deve continuar compatível com o calendario atual.
+- Falhas parciais da API Meta devem aparecer como warning, sem derrubar o monitor inteiro.
+
+Validacoes planejadas:
+
+- `node --check server.js`
+- `node --check db.js`
+- Checagem de erros do VS Code nos arquivos alterados.
+- Teste local do endpoint de status/rotas sem exigir leitura de `.env`.
+- Teste real de OAuth/sync apenas quando as variaveis Meta e `ENCRYPTION_KEY` estiverem configuradas no ambiente.
+
 ### Fase 1 - Fundacao de billing sem provedor externo
 Objetivo: colocar o fluxo comercial dentro do produto, mesmo sem cobranca automatica.
 
@@ -647,6 +716,13 @@ Criterio de aceite:
 - `.env.example`: variaveis de billing/pagamento.
 - `docs-implementacoes/`: documentacao por fase.
 
+Arquivos tambem previstos para a Meta Sync Fase 1:
+
+- `server.js`: criptografia de credenciais, callback Meta e endpoint manual de sincronizacao.
+- `db.js`: colunas enriquecidas de `social_posts` e upsert por post externo.
+- `.env.example`: `ENCRYPTION_KEY`.
+- `docs-implementacoes/2026-05-03-plano-implementacao-planos-trial-onboarding.md`: acompanhamento desta fase tecnica.
+
 Arquivos novos previstos:
 
 - `plans.html`
@@ -657,6 +733,10 @@ Arquivos novos previstos:
 - opcional: `billing-provider.js`
 
 ## Variaveis de ambiente futuras
+
+Para credenciais sociais criptografadas:
+
+- `ENCRYPTION_KEY`: chave secreta forte usada para cifrar tokens OAuth de canais sociais.
 
 Para Stripe:
 
@@ -691,6 +771,9 @@ Para Mercado Pago/Pagar.me, substituir pelos tokens equivalentes.
 - [ ] Criar seed dos planos.
 - [ ] Criar APIs de planos/status.
 - [ ] Criar middleware de entitlement.
+- [ ] Salvar credenciais Meta criptografadas.
+- [ ] Sincronizar posts reais da Meta no calendario.
+- [ ] Criar endpoint manual de sincronizacao social.
 - [ ] Integrar provedor de pagamento.
 - [ ] Implementar webhooks.
 
