@@ -4,34 +4,218 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Termos de Serviço | Wozza</title>
-  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+  <style>
+    body { color: #343a40; }
+    .legal-hero { background: #1a1a2e; color: #fff; padding: 3rem 0 2rem; }
+    .legal-hero h1 { font-weight: 700; }
+    .legal-hero .badge-update { background: #e3f2fd; color: #1565c0; font-size: .75rem; padding: .3rem .7rem; border-radius: 50px; }
+    .section-title { font-size: 1.1rem; font-weight: 700; color: #1a1a2e; border-left: 4px solid #007bff; padding-left: .75rem; margin-top: 2.5rem; margin-bottom: 1rem; }
+    .toc-box { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 1.25rem 1.5rem; }
+    .toc-box ol { margin-bottom: 0; padding-left: 1.2rem; }
+    .toc-box li { margin-bottom: .25rem; }
+    table th { background: #1a1a2e; color: #fff; }
+    footer a { color: #adb5bd; }
+    footer a:hover { color: #fff; }
+  </style>
 </head>
 <body>
-  <nav class="navbar navbar-expand-lg navbar-light bg-light">
-    <a class="navbar-brand" href="/">Wozza</a>
-    <div class="collapse navbar-collapse">
-      <ul class="navbar-nav ml-auto">
-        <li class="nav-item"><a class="nav-link" href="/privacy-policy.html">Política de Privacidade</a></li>
-        <li class="nav-item"><a class="nav-link" href="/terms-of-service.html">Termos de Serviço</a></li>
-      </ul>
-    </div>
-  </nav>
-  <div class="container mt-5 mb-5">
-    <h1>Termos de Serviço</h1>
-    <p>Ao utilizar o Wozza, você concorda com os seguintes termos:</p>
-    <h2>Uso do Serviço</h2>
-    <p>O Wozza destina-se à gestão e monitoramento de redes sociais, respeitando as políticas das plataformas integradas (Meta/Facebook/Instagram).</p>
-    <h2>Responsabilidades</h2>
-    <p>O usuário é responsável pelas informações fornecidas e pelo uso adequado do serviço. O Wozza não se responsabiliza por conteúdos de terceiros.</p>
-    <h2>Limitações</h2>
-    <p>O serviço pode ser interrompido, alterado ou descontinuado a qualquer momento, sem aviso prévio.</p>
-    <h2>Propriedade Intelectual</h2>
-    <p>Todo o conteúdo e marca Wozza são protegidos por direitos autorais e não podem ser utilizados sem autorização.</p>
-    <h2>Alterações</h2>
-    <p>Os termos podem ser atualizados. Mudanças relevantes serão comunicadas nesta página.</p>
-    <h2>Contato</h2>
-    <p>Em caso de dúvidas, entre em contato pelo e-mail informado na página principal.</p>
+
+<nav class="navbar navbar-expand-lg navbar-dark" style="background:#1a1a2e;">
+  <a class="navbar-brand font-weight-bold" href="/">Wozza</a>
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+  <div class="collapse navbar-collapse" id="navbarNav">
+    <ul class="navbar-nav ml-auto">
+      <li class="nav-item"><a class="nav-link" href="/portal-privacidade">Portal da Privacidade</a></li>
+      <li class="nav-item"><a class="nav-link" href="/privacy-policy">Política de Privacidade</a></li>
+      <li class="nav-item active"><a class="nav-link" href="/terms-of-service">Termos de Serviço</a></li>
+      <li class="nav-item"><a class="nav-link" href="/login">Entrar</a></li>
+    </ul>
   </div>
-  <footer class="text-center mb-4">&copy; 2026 Wozza</footer>
+</nav>
+
+<div class="legal-hero">
+  <div class="container">
+    <span class="badge-update">Atualizado em maio de 2026</span>
+    <h1 class="mt-2">Termos de Serviço</h1>
+    <p class="lead mb-0">Condições gerais de uso da plataforma Wozza. Leia com atenção antes de utilizar nossos serviços.</p>
+  </div>
+</div>
+
+<div class="container mt-4 mb-5">
+
+  <div class="toc-box mb-4">
+    <strong>Índice</strong>
+    <ol class="mt-2">
+      <li><a href="#referencias">Referências e definições</a></li>
+      <li><a href="#servicos">Serviços</a></li>
+      <li><a href="#utilizacao">Utilização dos serviços</a></li>
+      <li><a href="#planos">Planos e formas de pagamento</a></li>
+      <li><a href="#obrigacoes-wozza">Obrigações e limitações da Wozza</a></li>
+      <li><a href="#obrigacoes-usuario">Obrigações do usuário</a></li>
+      <li><a href="#propriedade">Propriedade intelectual</a></li>
+      <li><a href="#vigencia">Vigência e cancelamento</a></li>
+      <li><a href="#disposicoes">Disposições gerais</a></li>
+      <li><a href="#lei">Lei aplicável e foro</a></li>
+    </ol>
+  </div>
+
+  <p>Estes Termos de Serviço ("Termos") regulam o acesso e o uso da plataforma Wozza. Ao criar uma conta ou utilizar qualquer funcionalidade da Wozza, você ("Usuário") concorda integralmente com as condições aqui estabelecidas. Caso não concorde, não utilize nossos serviços.</p>
+  <p>A Wozza reserva-se o direito de atualizar estes Termos a qualquer tempo, mediante notificação aos usuários conforme descrito na seção 9.</p>
+
+  <!-- 1 -->
+  <h2 class="section-title" id="referencias">1. Referências e definições</h2>
+  <table class="table table-bordered table-sm">
+    <thead><tr><th>Termo</th><th>Definição</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Wozza</strong></td><td>Plataforma de gestão e monitoramento de redes sociais operada por seus desenvolvedores.</td></tr>
+      <tr><td><strong>Plataforma</strong></td><td>Sistema acessível em <em>wozza.vercel.app</em> e domínios associados, incluindo APIs e integrações.</td></tr>
+      <tr><td><strong>Usuário</strong></td><td>Pessoa física ou jurídica que acessa e utiliza a Plataforma após aceitar estes Termos.</td></tr>
+      <tr><td><strong>Conta</strong></td><td>Registro criado pelo Usuário para acessar os serviços da Wozza.</td></tr>
+      <tr><td><strong>Serviços</strong></td><td>Funcionalidades disponibilizadas pela Plataforma, descritas na seção 2.</td></tr>
+      <tr><td><strong>Conteúdo do Usuário</strong></td><td>Dados, informações, mensagens e demais conteúdos inseridos ou gerados pelo Usuário na Plataforma.</td></tr>
+      <tr><td><strong>Redes Sociais Conectadas</strong></td><td>Plataformas de terceiros (Meta/Instagram, Facebook, TikTok, LinkedIn) integradas pelo Usuário à Wozza.</td></tr>
+      <tr><td><strong>Plano</strong></td><td>Pacote de funcionalidades e limites de uso contratado pelo Usuário.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 2 -->
+  <h2 class="section-title" id="servicos">2. Serviços</h2>
+  <p>A Wozza oferece os seguintes serviços principais:</p>
+  <ul>
+    <li><strong>Monitor Social:</strong> central de triagem para mensagens diretas e comentários recebidos nas Redes Sociais Conectadas (Instagram, Facebook, TikTok, LinkedIn).</li>
+    <li><strong>Classificação automática por IA:</strong> categorização de interações em elogios, reclamações, críticas, sugestões, dúvidas técnicas e conteúdo de risco.</li>
+    <li><strong>Resposta automática configurável:</strong> bot de respostas padrão configurável pelo Usuário para interações elegíveis.</li>
+    <li><strong>Notificações:</strong> alertas para responsáveis sobre interações sensíveis que requerem atenção humana.</li>
+    <li><strong>Painel de gestão:</strong> visão unificada das interações, métricas e configurações de conta.</li>
+  </ul>
+  <p>A Wozza pode adicionar, modificar ou descontinuar funcionalidades a qualquer tempo, notificando os usuários com antecedência razoável quando a mudança for relevante.</p>
+
+  <!-- 3 -->
+  <h2 class="section-title" id="utilizacao">3. Utilização dos serviços</h2>
+  <h5 class="mt-3">3.1 Criação de conta</h5>
+  <p>Para utilizar a Plataforma, o Usuário deve criar uma Conta fornecendo informações verdadeiras, completas e atualizadas. O Usuário é responsável pela confidencialidade de suas credenciais de acesso e por todas as atividades realizadas em sua Conta.</p>
+
+  <h5 class="mt-3">3.2 Período de trial</h5>
+  <p>Novos usuários podem ter acesso a um período de avaliação gratuita ("trial") conforme definido no momento do cadastro. Após o encerramento do trial, o acesso às funcionalidades premium fica condicionado à contratação de um Plano pago.</p>
+
+  <h5 class="mt-3">3.3 Integração com redes sociais</h5>
+  <p>A integração com Redes Sociais Conectadas depende da autorização do Usuário e está sujeita aos termos e políticas de cada plataforma. A Wozza não se responsabiliza por mudanças nas APIs ou políticas das Redes Sociais Conectadas que afetem a disponibilidade ou funcionalidade dos serviços.</p>
+
+  <!-- 4 -->
+  <h2 class="section-title" id="planos">4. Planos e formas de pagamento</h2>
+  <h5 class="mt-3">4.1 Planos disponíveis</h5>
+  <p>Os Planos, com seus respectivos preços e funcionalidades, estão disponíveis na página de <a href="/plans">Planos</a>. A Wozza reserva-se o direito de alterar os preços dos Planos mediante notificação prévia de 30 dias.</p>
+
+  <h5 class="mt-3">4.2 Formas de pagamento</h5>
+  <p>O pagamento dos Planos pode ser realizado por meio de cartão de crédito, Pix ou boleto bancário, conforme opções disponíveis no momento da contratação. O processamento de pagamentos é realizado por gateways terceiros certificados.</p>
+
+  <h5 class="mt-3">4.3 Cobrança e renovação</h5>
+  <p>Os Planos mensais são cobrados no início de cada ciclo. Os Planos anuais são cobrados antecipadamente pelo período integral. A renovação é automática, salvo cancelamento conforme a seção 8.</p>
+
+  <h5 class="mt-3">4.4 Inadimplência</h5>
+  <p>Em caso de falha no pagamento, a Wozza poderá suspender o acesso ao Plano e notificará o Usuário para regularização. O acesso será restabelecido após a confirmação do pagamento.</p>
+
+  <!-- 5 -->
+  <h2 class="section-title" id="obrigacoes-wozza">5. Obrigações e limitações da Wozza</h2>
+  <p>A Wozza se compromete a:</p>
+  <ul>
+    <li>Disponibilizar a Plataforma conforme descrito no Plano contratado, com esforços razoáveis de disponibilidade.</li>
+    <li>Adotar medidas de segurança adequadas para proteger os dados dos Usuários.</li>
+    <li>Notificar os Usuários sobre manutenções programadas que impactem o serviço.</li>
+    <li>Tratar os dados pessoais em conformidade com a LGPD e a <a href="/privacy-policy">Política de Privacidade</a>.</li>
+  </ul>
+  <p>A Wozza <strong>não se responsabiliza</strong> por:</p>
+  <ul>
+    <li>Interrupções ou mudanças nas APIs das Redes Sociais Conectadas fora do seu controle.</li>
+    <li>Conteúdo gerado por terceiros nas redes sociais do Usuário.</li>
+    <li>Perdas indiretas, lucros cessantes ou danos decorrentes do uso ou impossibilidade de uso da Plataforma.</li>
+    <li>Ações ou omissões do Usuário em desacordo com estes Termos.</li>
+    <li>Falhas de infraestrutura de terceiros (provedores de internet, hospedagem, redes sociais).</li>
+  </ul>
+
+  <!-- 6 -->
+  <h2 class="section-title" id="obrigacoes-usuario">6. Obrigações do usuário</h2>
+  <p>Ao utilizar a Plataforma, o Usuário concorda em:</p>
+  <ul>
+    <li>Fornecer informações verdadeiras e mantê-las atualizadas.</li>
+    <li>Utilizar a Plataforma somente para finalidades lícitas e em conformidade com estes Termos.</li>
+    <li>Não praticar ações que prejudiquem a segurança, integridade ou disponibilidade da Plataforma.</li>
+    <li>Não tentar acessar, modificar ou interferir em contas de outros usuários.</li>
+    <li>Respeitar as políticas de uso das Redes Sociais Conectadas.</li>
+    <li>Não utilizar a Plataforma para envio de spam, conteúdo ilegal, abusivo, difamatório ou que viole direitos de terceiros.</li>
+    <li>Não realizar engenharia reversa, descompilar ou tentar extrair o código-fonte da Plataforma.</li>
+    <li>Manter a confidencialidade das credenciais de acesso à sua Conta.</li>
+  </ul>
+  <p>O descumprimento destas obrigações pode resultar na suspensão ou encerramento da Conta, sem direito a reembolso.</p>
+
+  <!-- 7 -->
+  <h2 class="section-title" id="propriedade">7. Propriedade intelectual</h2>
+  <p>A Wozza e seus licenciantes são titulares de todos os direitos de propriedade intelectual sobre a Plataforma, incluindo software, design, marca, logotipo, textos e demais elementos. Nenhuma disposição destes Termos transfere ao Usuário qualquer direito de propriedade intelectual sobre a Plataforma.</p>
+  <p>O Usuário concede à Wozza uma licença não exclusiva, gratuita e revogável para usar o Conteúdo do Usuário na medida necessária para a prestação dos Serviços.</p>
+  <p>O Usuário é o único responsável pelo Conteúdo do Usuário e declara ter todos os direitos necessários para conceder a licença acima.</p>
+
+  <!-- 8 -->
+  <h2 class="section-title" id="vigencia">8. Vigência e cancelamento</h2>
+  <h5 class="mt-3">8.1 Início e duração</h5>
+  <p>Estes Termos entram em vigor na data de aceite pelo Usuário e permanecem vigentes enquanto a Conta estiver ativa.</p>
+
+  <h5 class="mt-3">8.2 Cancelamento pelo Usuário</h5>
+  <p>O Usuário pode cancelar sua Conta e assinatura a qualquer tempo pelas configurações da Plataforma ou entrando em contato com o suporte. O cancelamento produz efeito no fim do período de cobrança em curso. Não há reembolso por períodos não utilizados de Planos mensais. Para Planos anuais, poderá ser concedido reembolso proporcional aos meses restantes, a critério da Wozza.</p>
+
+  <h5 class="mt-3">8.3 Encerramento pela Wozza</h5>
+  <p>A Wozza pode encerrar ou suspender a Conta do Usuário em caso de violação destes Termos, mediante notificação prévia sempre que possível. Em caso de violação grave ou risco à segurança da Plataforma, o encerramento pode ser imediato.</p>
+
+  <h5 class="mt-3">8.4 Efeitos do encerramento</h5>
+  <p>Após o encerramento da Conta, o Usuário perderá o acesso à Plataforma e aos seus dados. Os dados poderão ser retidos por até 12 meses conforme a <a href="/privacy-policy">Política de Privacidade</a>, após o que serão eliminados.</p>
+
+  <!-- 9 -->
+  <h2 class="section-title" id="disposicoes">9. Disposições gerais</h2>
+  <ul>
+    <li><strong>Notificações:</strong> comunicações da Wozza serão enviadas ao e-mail cadastrado na Conta ou por aviso na Plataforma.</li>
+    <li><strong>Alterações dos Termos:</strong> alterações relevantes serão notificadas com antecedência mínima de 15 dias. A continuidade do uso após a vigência das alterações constituirá aceite.</li>
+    <li><strong>Integralidade:</strong> estes Termos, juntamente com a Política de Privacidade, constituem o acordo integral entre o Usuário e a Wozza.</li>
+    <li><strong>Cessão:</strong> o Usuário não pode ceder seus direitos ou obrigações decorrentes destes Termos sem o consentimento prévio e por escrito da Wozza.</li>
+    <li><strong>Nulidade parcial:</strong> a invalidade de qualquer disposição destes Termos não afeta a validade das demais.</li>
+  </ul>
+
+  <!-- 10 -->
+  <h2 class="section-title" id="lei">10. Lei aplicável e foro</h2>
+  <p>Estes Termos são regidos pelas leis da República Federativa do Brasil. Para a resolução de controvérsias decorrentes destes Termos, fica eleito o foro da comarca de São Paulo — SP, com renúncia a qualquer outro, por mais privilegiado que seja.</p>
+  <p>Antes de iniciar qualquer procedimento judicial, as partes comprometem-se a tentar solucionar o conflito por meio de negociação direta ou mediação.</p>
+
+</div>
+
+<footer class="bg-dark text-light pt-4 pb-3">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-4 mb-3">
+        <strong>Wozza</strong>
+        <p class="small text-muted mt-1">Plataforma de gestão e monitoramento de redes sociais.</p>
+      </div>
+      <div class="col-md-4 mb-3">
+        <strong class="small text-uppercase text-muted">Legal</strong>
+        <ul class="list-unstyled mt-1 small">
+          <li><a href="/portal-privacidade">Portal da Privacidade</a></li>
+          <li><a href="/privacy-policy">Política de Privacidade</a></li>
+          <li><a href="/terms-of-service">Termos de Serviço</a></li>
+        </ul>
+      </div>
+      <div class="col-md-4 mb-3">
+        <strong class="small text-uppercase text-muted">Contato</strong>
+        <ul class="list-unstyled mt-1 small">
+          <li><a href="mailto:privacidade@wozza.app">privacidade@wozza.app</a></li>
+        </ul>
+      </div>
+    </div>
+    <hr class="border-secondary">
+    <p class="text-center text-muted small mb-0">&copy; 2026 Wozza. Todos os direitos reservados.</p>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

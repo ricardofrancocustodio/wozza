@@ -850,6 +850,9 @@ app.get('/social-monitor', (req, res) => res.sendFile(path.join(__dirname, 'soci
 app.get('/plans',    (req, res) => res.sendFile(path.join(__dirname, 'plans.html')));
 app.get('/onboarding', (req, res) => res.sendFile(path.join(__dirname, 'onboarding.html')));
 app.get('/billing',  (req, res) => res.sendFile(path.join(__dirname, 'billing.html')));
+app.get('/privacy-policy',    (req, res) => res.sendFile(path.join(__dirname, 'privacy-policy.html')));
+app.get('/terms-of-service',  (req, res) => res.sendFile(path.join(__dirname, 'terms-of-service.html')));
+app.get('/portal-privacidade',(req, res) => res.sendFile(path.join(__dirname, 'privacy-portal.html')));
 
 // ─── API: Monitor Social ──────────────────────────────────────────────────────
 

@@ -4,36 +4,248 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Política de Privacidade | Wozza</title>
-  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+  <style>
+    body { color: #343a40; }
+    .legal-hero { background: #1a1a2e; color: #fff; padding: 3rem 0 2rem; }
+    .legal-hero h1 { font-weight: 700; }
+    .legal-hero .badge-update { background: #e3f2fd; color: #1565c0; font-size: .75rem; padding: .3rem .7rem; border-radius: 50px; }
+    .section-title { font-size: 1.1rem; font-weight: 700; color: #1a1a2e; border-left: 4px solid #007bff; padding-left: .75rem; margin-top: 2.5rem; margin-bottom: 1rem; }
+    .toc-box { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 1.25rem 1.5rem; }
+    .toc-box ol { margin-bottom: 0; padding-left: 1.2rem; }
+    .toc-box li { margin-bottom: .25rem; }
+    table th { background: #1a1a2e; color: #fff; }
+    .rights-grid .card { border-left: 4px solid #007bff; }
+    footer a { color: #adb5bd; }
+    footer a:hover { color: #fff; }
+  </style>
 </head>
 <body>
-  <nav class="navbar navbar-expand-lg navbar-light bg-light">
-    <a class="navbar-brand" href="/">Wozza</a>
-    <div class="collapse navbar-collapse">
-      <ul class="navbar-nav ml-auto">
-        <li class="nav-item"><a class="nav-link" href="/privacy-policy.html">Política de Privacidade</a></li>
-        <li class="nav-item"><a class="nav-link" href="/terms-of-service.html">Termos de Serviço</a></li>
-      </ul>
-    </div>
-  </nav>
-  <div class="container mt-5 mb-5">
-    <h1>Política de Privacidade</h1>
-    <p>Esta Política de Privacidade descreve como o Wozza coleta, usa e protege suas informações ao utilizar nossos serviços.</p>
-    <h2>Coleta de Informações</h2>
-    <p>Coletamos informações fornecidas por você e dados necessários para funcionamento do serviço, incluindo dados de autenticação de redes sociais, conforme exigido pelas plataformas integradas (Meta/Facebook/Instagram).</p>
-    <h2>Uso das Informações</h2>
-    <p>As informações são utilizadas exclusivamente para prover e melhorar os serviços do Wozza, respeitando as regras de privacidade das plataformas integradas.</p>
-    <h2>Compartilhamento</h2>
-    <p>Não compartilhamos suas informações pessoais com terceiros, exceto quando exigido por lei ou para cumprir requisitos das plataformas integradas.</p>
-    <h2>Segurança</h2>
-    <p>Adotamos medidas de segurança para proteger seus dados, mas nenhum sistema é 100% seguro. Em caso de incidente, notificaremos conforme exigido pela legislação.</p>
-    <h2>Direitos do Usuário</h2>
-    <p>Você pode solicitar acesso, correção ou exclusão de seus dados entrando em contato conosco.</p>
-    <h2>Alterações</h2>
-    <p>Esta política pode ser atualizada. Mudanças relevantes serão comunicadas nesta página.</p>
-    <h2>Contato</h2>
-    <p>Em caso de dúvidas, entre em contato pelo e-mail informado na página principal.</p>
+
+<nav class="navbar navbar-expand-lg navbar-dark" style="background:#1a1a2e;">
+  <a class="navbar-brand font-weight-bold" href="/">Wozza</a>
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+  <div class="collapse navbar-collapse" id="navbarNav">
+    <ul class="navbar-nav ml-auto">
+      <li class="nav-item"><a class="nav-link" href="/portal-privacidade">Portal da Privacidade</a></li>
+      <li class="nav-item active"><a class="nav-link" href="/privacy-policy">Política de Privacidade</a></li>
+      <li class="nav-item"><a class="nav-link" href="/terms-of-service">Termos de Serviço</a></li>
+      <li class="nav-item"><a class="nav-link" href="/login">Entrar</a></li>
+    </ul>
   </div>
-  <footer class="text-center mb-4">&copy; 2026 Wozza</footer>
+</nav>
+
+<div class="legal-hero">
+  <div class="container">
+    <span class="badge-update">Atualizado em maio de 2026</span>
+    <h1 class="mt-2">Política de Privacidade</h1>
+    <p class="lead mb-0">Como a Wozza coleta, usa e protege seus dados pessoais — em conformidade com a LGPD (Lei nº 13.709/2018).</p>
+  </div>
+</div>
+
+<div class="container mt-4 mb-5">
+
+  <div class="toc-box mb-4">
+    <strong>Índice</strong>
+    <ol class="mt-2">
+      <li><a href="#definicoes">Definições</a></li>
+      <li><a href="#dados-coletados">Dados coletados</a></li>
+      <li><a href="#finalidades">Finalidades do tratamento</a></li>
+      <li><a href="#bases-legais">Bases legais</a></li>
+      <li><a href="#compartilhamento">Compartilhamento de dados</a></li>
+      <li><a href="#direitos">Direitos dos titulares</a></li>
+      <li><a href="#seguranca">Segurança</a></li>
+      <li><a href="#cookies">Cookies e tecnologias similares</a></li>
+      <li><a href="#retencao">Retenção de dados</a></li>
+      <li><a href="#alteracoes">Alterações desta política</a></li>
+      <li><a href="#contato">Contato e DPO</a></li>
+    </ol>
+  </div>
+
+  <p>A <strong>Wozza</strong> está comprometida com a sua privacidade e reconhece a importância dos seus dados pessoais. Esta Política de Privacidade descreve de forma transparente como tratamos os dados coletados em nossa plataforma de gestão e monitoramento de redes sociais, em conformidade com a Lei Geral de Proteção de Dados (LGPD — Lei nº 13.709/2018).</p>
+  <p>Ao utilizar a Wozza, você concorda com as práticas descritas neste documento. Caso não concorde, não utilize nossos serviços.</p>
+
+  <!-- 1 -->
+  <h2 class="section-title" id="definicoes">1. Definições</h2>
+  <p>Para fins desta política, aplicam-se as seguintes definições:</p>
+  <table class="table table-bordered table-sm">
+    <thead>
+      <tr><th>Termo</th><th>Definição</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Dado Pessoal</strong></td><td>Informação relacionada a pessoa natural identificada ou identificável.</td></tr>
+      <tr><td><strong>Dado Pessoal Sensível</strong></td><td>Dado sobre origem racial/étnica, convicção religiosa, opinião política, saúde, vida sexual, dado biométrico ou genético.</td></tr>
+      <tr><td><strong>Titular</strong></td><td>Pessoa natural a quem se referem os dados pessoais.</td></tr>
+      <tr><td><strong>Controlador</strong></td><td>Wozza — responsável pelas decisões sobre o tratamento de dados pessoais.</td></tr>
+      <tr><td><strong>Operador</strong></td><td>Pessoa natural ou jurídica que realiza o tratamento em nome do controlador.</td></tr>
+      <tr><td><strong>Tratamento</strong></td><td>Toda operação realizada com dados pessoais: coleta, produção, recepção, classificação, utilização, acesso, reprodução, transmissão, distribuição, processamento, arquivamento, armazenamento, eliminação, avaliação ou controle da informação, modificação, comunicação, transferência, difusão ou extração.</td></tr>
+      <tr><td><strong>LGPD</strong></td><td>Lei Geral de Proteção de Dados Pessoais (Lei nº 13.709/2018).</td></tr>
+      <tr><td><strong>ANPD</strong></td><td>Autoridade Nacional de Proteção de Dados.</td></tr>
+      <tr><td><strong>Plataforma</strong></td><td>Sistema Wozza acessível em <em>wozza.vercel.app</em> e domínios associados.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 2 -->
+  <h2 class="section-title" id="dados-coletados">2. Dados coletados</h2>
+  <p>Coletamos dados pessoais nas seguintes categorias:</p>
+
+  <h5 class="mt-3">2.1 Dados de identificação e cadastro</h5>
+  <ul>
+    <li>Nome completo e endereço de e-mail</li>
+    <li>Dados de acesso (credenciais de autenticação criptografadas)</li>
+    <li>Informações de perfil fornecidas pelo usuário</li>
+  </ul>
+
+  <h5 class="mt-3">2.2 Dados de integração com redes sociais</h5>
+  <p>Ao conectar suas contas de redes sociais (Meta/Instagram, Facebook, TikTok, LinkedIn), coletamos:</p>
+  <ul>
+    <li>Tokens de acesso às APIs das plataformas (armazenados de forma segura)</li>
+    <li>Identificadores de contas e páginas vinculadas</li>
+    <li>Mensagens diretas, comentários e menções recebidos nas contas conectadas</li>
+    <li>Dados de remetentes (nome de usuário/handle, nome de exibição) — conforme permitido pela API da plataforma</li>
+  </ul>
+
+  <h5 class="mt-3">2.3 Dados de navegação e uso</h5>
+  <ul>
+    <li>Endereço IP, tipo e versão do navegador</li>
+    <li>Páginas acessadas, tempo de sessão e interações com a plataforma</li>
+    <li>Identificador de sessão (cookie <code>wozza_session</code>)</li>
+  </ul>
+
+  <h5 class="mt-3">2.4 Dados de faturamento</h5>
+  <ul>
+    <li>Plano contratado, datas de assinatura e renovação</li>
+    <li>Dados de pagamento — processados por gateway terceiro; a Wozza não armazena números de cartão</li>
+  </ul>
+
+  <!-- 3 -->
+  <h2 class="section-title" id="finalidades">3. Finalidades do tratamento</h2>
+  <ul>
+    <li>Autenticar usuários e controlar o acesso à plataforma</li>
+    <li>Processar e classificar mensagens e comentários recebidos nas redes sociais conectadas</li>
+    <li>Gerar respostas automáticas configuradas pelo usuário</li>
+    <li>Notificar responsáveis sobre interações sensíveis</li>
+    <li>Gerenciar assinaturas, cobranças e planos de serviço</li>
+    <li>Melhorar a qualidade e a segurança da plataforma</li>
+    <li>Cumprir obrigações legais e regulatórias</li>
+    <li>Enviar comunicações sobre o serviço (transacionais e, com seu consentimento, marketing)</li>
+  </ul>
+
+  <!-- 4 -->
+  <h2 class="section-title" id="bases-legais">4. Bases legais</h2>
+  <table class="table table-bordered table-sm">
+    <thead>
+      <tr><th>Atividade de tratamento</th><th>Base legal (LGPD)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Autenticação e acesso à plataforma</td><td>Execução de contrato (art. 7º, V)</td></tr>
+      <tr><td>Processamento de mensagens e integrações</td><td>Execução de contrato (art. 7º, V)</td></tr>
+      <tr><td>Faturamento e cobrança</td><td>Execução de contrato (art. 7º, V)</td></tr>
+      <tr><td>Segurança e prevenção de fraudes</td><td>Legítimo interesse (art. 7º, IX)</td></tr>
+      <tr><td>Melhoria da plataforma (analytics)</td><td>Legítimo interesse (art. 7º, IX)</td></tr>
+      <tr><td>Comunicações de marketing</td><td>Consentimento (art. 7º, I)</td></tr>
+      <tr><td>Cumprimento de obrigações legais</td><td>Cumprimento de obrigação legal (art. 7º, II)</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 5 -->
+  <h2 class="section-title" id="compartilhamento">5. Compartilhamento de dados</h2>
+  <p>A Wozza não vende dados pessoais. O compartilhamento ocorre apenas nos casos abaixo:</p>
+  <ul>
+    <li><strong>Plataformas de redes sociais:</strong> dados são enviados às APIs das plataformas conectadas (Meta, TikTok, LinkedIn) conforme necessário para a execução do serviço.</li>
+    <li><strong>Prestadores de serviço:</strong> fornecedores de infraestrutura (hospedagem, banco de dados, processamento de pagamentos) que atuam como operadores, vinculados por contrato de confidencialidade.</li>
+    <li><strong>Autoridades públicas:</strong> quando exigido por lei, ordem judicial ou requisição de autoridade competente.</li>
+    <li><strong>Proteção de direitos:</strong> quando necessário para exercer ou defender direitos da Wozza em processos judiciais ou administrativos.</li>
+  </ul>
+
+  <!-- 6 -->
+  <h2 class="section-title" id="direitos">6. Direitos dos titulares</h2>
+  <p>Nos termos da LGPD, você tem direito a:</p>
+  <div class="row rights-grid mt-3">
+    <div class="col-md-6 mb-3"><div class="card h-100 p-3"><strong>Confirmação e acesso</strong><p class="mb-0 small mt-1">Confirmar se tratamos seus dados e acessar uma cópia deles.</p></div></div>
+    <div class="col-md-6 mb-3"><div class="card h-100 p-3"><strong>Correção</strong><p class="mb-0 small mt-1">Solicitar a correção de dados incompletos, inexatos ou desatualizados.</p></div></div>
+    <div class="col-md-6 mb-3"><div class="card h-100 p-3"><strong>Anonimização, bloqueio ou eliminação</strong><p class="mb-0 small mt-1">Solicitar o tratamento adequado de dados desnecessários ou excessivos.</p></div></div>
+    <div class="col-md-6 mb-3"><div class="card h-100 p-3"><strong>Portabilidade</strong><p class="mb-0 small mt-1">Receber seus dados em formato estruturado para transferência a outro fornecedor.</p></div></div>
+    <div class="col-md-6 mb-3"><div class="card h-100 p-3"><strong>Eliminação de dados</strong><p class="mb-0 small mt-1">Solicitar a exclusão de dados tratados com base no consentimento.</p></div></div>
+    <div class="col-md-6 mb-3"><div class="card h-100 p-3"><strong>Revogação do consentimento</strong><p class="mb-0 small mt-1">Revogar o consentimento a qualquer momento, sem prejuízo ao tratamento realizado anteriormente.</p></div></div>
+    <div class="col-md-6 mb-3"><div class="card h-100 p-3"><strong>Informação sobre compartilhamento</strong><p class="mb-0 small mt-1">Saber com quais entidades públicas e privadas compartilhamos seus dados.</p></div></div>
+    <div class="col-md-6 mb-3"><div class="card h-100 p-3"><strong>Oposição ao tratamento</strong><p class="mb-0 small mt-1">Opor-se a tratamentos baseados em outras hipóteses legais, em caso de descumprimento da LGPD.</p></div></div>
+  </div>
+  <p class="mt-2">Para exercer seus direitos, acesse o <a href="/portal-privacidade">Portal da Privacidade</a> ou envie e-mail para <a href="mailto:privacidade@wozza.app">privacidade@wozza.app</a>. Responderemos em até 15 dias corridos.</p>
+
+  <!-- 7 -->
+  <h2 class="section-title" id="seguranca">7. Segurança</h2>
+  <p>Adotamos medidas técnicas e organizacionais adequadas para proteger seus dados pessoais contra acesso não autorizado, perda acidental, destruição ou divulgação, incluindo:</p>
+  <ul>
+    <li>Criptografia de dados em trânsito (TLS/HTTPS)</li>
+    <li>Controle de acesso baseado em perfis e sessões autenticadas</li>
+    <li>Tokens de acesso às redes sociais armazenados de forma criptografada</li>
+    <li>Monitoramento de integridade e registros de auditoria</li>
+  </ul>
+  <p>Nenhum sistema é 100% seguro. Em caso de incidente de segurança relevante, notificaremos os titulares afetados e a ANPD nos prazos previstos em lei.</p>
+
+  <!-- 8 -->
+  <h2 class="section-title" id="cookies">8. Cookies e tecnologias similares</h2>
+  <p>Utilizamos o cookie <code>wozza_session</code> para autenticação e manutenção da sessão autenticada. Este cookie é estritamente necessário para o funcionamento do serviço.</p>
+  <p>Podemos utilizar cookies analíticos de terceiros para medir o uso da plataforma. Você pode gerenciar cookies pelo seu navegador, mas a desativação do cookie de sessão impedirá o acesso à plataforma.</p>
+
+  <!-- 9 -->
+  <h2 class="section-title" id="retencao">9. Retenção de dados</h2>
+  <p>Mantemos seus dados pessoais pelo tempo necessário para as finalidades descritas nesta política ou conforme exigido por lei. Critérios de retenção:</p>
+  <ul>
+    <li><strong>Dados de conta:</strong> enquanto a conta estiver ativa; até 12 meses após o encerramento.</li>
+    <li><strong>Mensagens e interações de redes sociais:</strong> até 12 meses, salvo configuração diferente pelo usuário.</li>
+    <li><strong>Dados de faturamento:</strong> 5 anos, conforme exigência fiscal e contábil.</li>
+    <li><strong>Registros de auditoria:</strong> 6 meses.</li>
+  </ul>
+  <p>Após o período de retenção, os dados são eliminados de forma segura ou anonimizados.</p>
+
+  <!-- 10 -->
+  <h2 class="section-title" id="alteracoes">10. Alterações desta política</h2>
+  <p>Esta política pode ser atualizada periodicamente. Alterações relevantes serão comunicadas por e-mail ou por aviso na plataforma com antecedência mínima de 15 dias. A continuidade do uso dos serviços após a entrada em vigor das alterações constituirá aceite.</p>
+  <p>A versão atual está identificada pela data no topo desta página.</p>
+
+  <!-- 11 -->
+  <h2 class="section-title" id="contato">11. Contato e DPO</h2>
+  <p>Para exercer seus direitos, esclarecer dúvidas ou registrar uma solicitação relacionada à privacidade:</p>
+  <ul>
+    <li><strong>Portal da Privacidade:</strong> <a href="/portal-privacidade">wozza.vercel.app/portal-privacidade</a></li>
+    <li><strong>E-mail:</strong> <a href="mailto:privacidade@wozza.app">privacidade@wozza.app</a></li>
+  </ul>
+  <p>Você também pode contatar a <strong>Autoridade Nacional de Proteção de Dados (ANPD)</strong> em caso de não resolução de sua solicitação: <a href="https://www.gov.br/anpd" target="_blank" rel="noopener">gov.br/anpd</a>.</p>
+
+</div>
+
+<footer class="bg-dark text-light pt-4 pb-3">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-4 mb-3">
+        <strong>Wozza</strong>
+        <p class="small text-muted mt-1">Plataforma de gestão e monitoramento de redes sociais.</p>
+      </div>
+      <div class="col-md-4 mb-3">
+        <strong class="small text-uppercase text-muted">Legal</strong>
+        <ul class="list-unstyled mt-1 small">
+          <li><a href="/portal-privacidade">Portal da Privacidade</a></li>
+          <li><a href="/privacy-policy">Política de Privacidade</a></li>
+          <li><a href="/terms-of-service">Termos de Serviço</a></li>
+        </ul>
+      </div>
+      <div class="col-md-4 mb-3">
+        <strong class="small text-uppercase text-muted">Contato</strong>
+        <ul class="list-unstyled mt-1 small">
+          <li><a href="mailto:privacidade@wozza.app">privacidade@wozza.app</a></li>
+        </ul>
+      </div>
+    </div>
+    <hr class="border-secondary">
+    <p class="text-center text-muted small mb-0">&copy; 2026 Wozza. Todos os direitos reservados.</p>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

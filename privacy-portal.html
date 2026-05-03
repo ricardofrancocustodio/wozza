@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal da Privacidade | Wozza</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+  <style>
+    body { color: #343a40; }
+    .portal-hero { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%); color: #fff; padding: 4rem 0 3rem; }
+    .portal-hero h1 { font-weight: 800; font-size: 2.4rem; }
+    .portal-hero p { opacity: .85; max-width: 600px; }
+    .nav-pills-portal .nav-link { color: #495057; border-radius: 50px; padding: .45rem 1.1rem; font-size: .9rem; }
+    .nav-pills-portal .nav-link.active { background: #1a1a2e; color: #fff; }
+    .section-heading { font-weight: 700; font-size: 1.6rem; color: #1a1a2e; }
+    .right-card { border: none; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.08); transition: transform .15s; }
+    .right-card:hover { transform: translateY(-2px); }
+    .right-card .icon-wrap { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; }
+    .icon-blue { background: #e3f2fd; color: #1565c0; }
+    .lgpd-card { background: #f8f9fa; border-radius: 12px; padding: 1.5rem; height: 100%; }
+    .lgpd-card .num { font-size: 2rem; font-weight: 800; color: #007bff; line-height: 1; }
+    .request-card { background: #fff; border: 1px solid #dee2e6; border-radius: 12px; padding: 1.5rem; }
+    .badge-lgpd { background: #e8f5e9; color: #2e7d32; font-size: .75rem; padding: .3rem .7rem; border-radius: 50px; }
+    footer a { color: #adb5bd; }
+    footer a:hover { color: #fff; }
+    .sticky-nav { position: sticky; top: 0; z-index: 100; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark" style="background:#1a1a2e;">
+  <a class="navbar-brand font-weight-bold" href="/">Wozza</a>
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+  <div class="collapse navbar-collapse" id="navbarNav">
+    <ul class="navbar-nav ml-auto">
+      <li class="nav-item active"><a class="nav-link" href="/portal-privacidade">Portal da Privacidade</a></li>
+      <li class="nav-item"><a class="nav-link" href="/privacy-policy">Política de Privacidade</a></li>
+      <li class="nav-item"><a class="nav-link" href="/terms-of-service">Termos de Serviço</a></li>
+      <li class="nav-item"><a class="nav-link" href="/login">Entrar</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Hero -->
+<div class="portal-hero">
+  <div class="container">
+    <span class="badge-lgpd mb-3 d-inline-block">Em conformidade com a LGPD</span>
+    <h1>Portal da Privacidade Wozza</h1>
+    <p class="lead mt-2">Transparência, controle e segurança para os seus dados pessoais. Conheça seus direitos, entenda como tratamos seus dados e faça suas solicitações aqui.</p>
+    <div class="mt-4">
+      <a href="#seus-direitos" class="btn btn-light mr-2 mb-2">Meus direitos</a>
+      <a href="#solicitacao" class="btn btn-outline-light mb-2">Fazer solicitação</a>
+    </div>
+  </div>
+</div>
+
+<!-- Sticky section nav -->
+<div class="sticky-nav py-2">
+  <div class="container">
+    <ul class="nav nav-pills-portal flex-nowrap overflow-auto" style="gap:.5rem;">
+      <li class="nav-item"><a class="nav-link active" href="#lgpd">Conheça a LGPD</a></li>
+      <li class="nav-item"><a class="nav-link" href="#compromisso">Nosso compromisso</a></li>
+      <li class="nav-item"><a class="nav-link" href="#seus-direitos">Seus direitos</a></li>
+      <li class="nav-item"><a class="nav-link" href="#solicitacao">Solicite</a></li>
+      <li class="nav-item"><a class="nav-link" href="#fale-conosco">Fale conosco</a></li>
+    </ul>
+  </div>
+</div>
+
+<!-- LGPD section -->
+<section id="lgpd" class="py-5 bg-white">
+  <div class="container">
+    <h2 class="section-heading mb-2">O que é a LGPD?</h2>
+    <p class="text-muted mb-4">A Lei Geral de Proteção de Dados Pessoais (Lei nº 13.709/2018) é a legislação brasileira que regula o tratamento de dados pessoais. Em vigor desde setembro de 2020, ela assegura transparência, controle e segurança para os titulares de dados.</p>
+    <div class="row">
+      <div class="col-md-4 mb-4">
+        <div class="lgpd-card">
+          <div class="num">01</div>
+          <h5 class="mt-2 font-weight-bold">Dados Pessoais</h5>
+          <p class="small text-muted mb-0">Qualquer informação que identifique ou torne identificável uma pessoa natural: nome, e-mail, IP, identificadores digitais etc.</p>
+        </div>
+      </div>
+      <div class="col-md-4 mb-4">
+        <div class="lgpd-card">
+          <div class="num">02</div>
+          <h5 class="mt-2 font-weight-bold">Dados Sensíveis</h5>
+          <p class="small text-muted mb-0">Categoria especial que inclui dados sobre saúde, origem racial, convicção religiosa, biometria e vida sexual — com proteção reforçada.</p>
+        </div>
+      </div>
+      <div class="col-md-4 mb-4">
+        <div class="lgpd-card">
+          <div class="num">03</div>
+          <h5 class="mt-2 font-weight-bold">Tratamento de dados</h5>
+          <p class="small text-muted mb-0">Toda operação com dados pessoais: coleta, uso, armazenamento, transmissão, processamento e eliminação.</p>
+        </div>
+      </div>
+      <div class="col-md-4 mb-4">
+        <div class="lgpd-card">
+          <div class="num">04</div>
+          <h5 class="mt-2 font-weight-bold">Titular</h5>
+          <p class="small text-muted mb-0">Você — a pessoa natural a quem os dados se referem. A LGPD garante seus direitos sobre esses dados.</p>
+        </div>
+      </div>
+      <div class="col-md-4 mb-4">
+        <div class="lgpd-card">
+          <div class="num">05</div>
+          <h5 class="mt-2 font-weight-bold">Controlador</h5>
+          <p class="small text-muted mb-0">A Wozza — responsável pelas decisões sobre como e por que seus dados são tratados.</p>
+        </div>
+      </div>
+      <div class="col-md-4 mb-4">
+        <div class="lgpd-card">
+          <div class="num">06</div>
+          <h5 class="mt-2 font-weight-bold">Bases legais</h5>
+          <p class="small text-muted mb-0">Todo tratamento precisa de uma base legal: consentimento, execução de contrato, obrigação legal ou legítimo interesse, entre outras.</p>
+        </div>
+      </div>
+    </div>
+    <p class="mt-2 small text-muted">Saiba mais em <a href="https://www.gov.br/anpd" target="_blank" rel="noopener">gov.br/anpd</a> — Autoridade Nacional de Proteção de Dados.</p>
+  </div>
+</section>
+
+<!-- Compromisso -->
+<section id="compromisso" class="py-5" style="background:#f8f9fa;">
+  <div class="container">
+    <div class="row align-items-center">
+      <div class="col-md-6 mb-4 mb-md-0">
+        <h2 class="section-heading mb-3">Nosso compromisso com sua privacidade</h2>
+        <p>A Wozza adota padrões rigorosos de proteção de dados pessoais em toda a nossa operação. Privacidade não é um checkbox — é parte central de como construímos nossa plataforma.</p>
+        <ul class="list-unstyled mt-3">
+          <li class="mb-2"><span class="text-success mr-2">&#10003;</span> <strong>Princípio da minimização:</strong> coletamos apenas os dados estritamente necessários para os serviços.</li>
+          <li class="mb-2"><span class="text-success mr-2">&#10003;</span> <strong>Transparência:</strong> você sabe exatamente quais dados coletamos e por quê.</li>
+          <li class="mb-2"><span class="text-success mr-2">&#10003;</span> <strong>Segurança:</strong> criptografia em trânsito e controles de acesso rigorosos.</li>
+          <li class="mb-2"><span class="text-success mr-2">&#10003;</span> <strong>Sem venda de dados:</strong> nunca vendemos seus dados a terceiros.</li>
+          <li class="mb-2"><span class="text-success mr-2">&#10003;</span> <strong>Controle do titular:</strong> você pode acessar, corrigir ou excluir seus dados a qualquer momento.</li>
+        </ul>
+      </div>
+      <div class="col-md-6">
+        <div class="card border-0 rounded-lg p-4" style="background:#1a1a2e; color:#fff;">
+          <h5 class="font-weight-bold mb-3">Documentos de privacidade</h5>
+          <a href="/privacy-policy" class="btn btn-outline-light btn-block mb-2 text-left">
+            <i class="mr-2">&#128196;</i> Política de Privacidade
+          </a>
+          <a href="/terms-of-service" class="btn btn-outline-light btn-block text-left">
+            <i class="mr-2">&#128221;</i> Termos de Serviço
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Direitos -->
+<section id="seus-direitos" class="py-5 bg-white">
+  <div class="container">
+    <h2 class="section-heading mb-2">Seus direitos como titular</h2>
+    <p class="text-muted mb-4">A LGPD garante 8 direitos fundamentais sobre seus dados pessoais. A Wozza se compromete a atendê-los em até 15 dias corridos.</p>
+    <div class="row">
+      <div class="col-md-6 col-lg-3 mb-4">
+        <div class="right-card card p-3 h-100">
+          <div class="d-flex align-items-center mb-2">
+            <div class="icon-wrap icon-blue mr-2">&#128270;</div>
+            <strong>Confirmação e acesso</strong>
+          </div>
+          <p class="small text-muted mb-0">Confirme se tratamos seus dados e receba uma cópia das informações que temos sobre você.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3 mb-4">
+        <div class="right-card card p-3 h-100">
+          <div class="d-flex align-items-center mb-2">
+            <div class="icon-wrap icon-blue mr-2">&#9998;</div>
+            <strong>Correção</strong>
+          </div>
+          <p class="small text-muted mb-0">Solicite a correção de dados incompletos, inexatos ou desatualizados.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3 mb-4">
+        <div class="right-card card p-3 h-100">
+          <div class="d-flex align-items-center mb-2">
+            <div class="icon-wrap icon-blue mr-2">&#128683;</div>
+            <strong>Anonimização e bloqueio</strong>
+          </div>
+          <p class="small text-muted mb-0">Solicite anonimização, bloqueio ou eliminação de dados desnecessários ou excessivos.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3 mb-4">
+        <div class="right-card card p-3 h-100">
+          <div class="d-flex align-items-center mb-2">
+            <div class="icon-wrap icon-blue mr-2">&#128228;</div>
+            <strong>Portabilidade</strong>
+          </div>
+          <p class="small text-muted mb-0">Receba seus dados em formato estruturado para transferência a outro serviço.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3 mb-4">
+        <div class="right-card card p-3 h-100">
+          <div class="d-flex align-items-center mb-2">
+            <div class="icon-wrap icon-blue mr-2">&#128465;</div>
+            <strong>Eliminação</strong>
+          </div>
+          <p class="small text-muted mb-0">Solicite a exclusão dos dados tratados com base no seu consentimento.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3 mb-4">
+        <div class="right-card card p-3 h-100">
+          <div class="d-flex align-items-center mb-2">
+            <div class="icon-wrap icon-blue mr-2">&#128279;</div>
+            <strong>Informação sobre compartilhamento</strong>
+          </div>
+          <p class="small text-muted mb-0">Saiba com quais entidades públicas e privadas compartilhamos seus dados.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3 mb-4">
+        <div class="right-card card p-3 h-100">
+          <div class="d-flex align-items-center mb-2">
+            <div class="icon-wrap icon-blue mr-2">&#10006;</div>
+            <strong>Revogação do consentimento</strong>
+          </div>
+          <p class="small text-muted mb-0">Revogue seu consentimento a qualquer momento, sem prejuízo ao tratamento anterior.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3 mb-4">
+        <div class="right-card card p-3 h-100">
+          <div class="d-flex align-items-center mb-2">
+            <div class="icon-wrap icon-blue mr-2">&#128308;</div>
+            <strong>Oposição ao tratamento</strong>
+          </div>
+          <p class="small text-muted mb-0">Oponha-se a tratamentos em desconformidade com a LGPD ou em caso de dano.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Solicitação -->
+<section id="solicitacao" class="py-5" style="background:#f8f9fa;">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-8 col-lg-7">
+        <h2 class="section-heading text-center mb-2">Faça sua solicitação</h2>
+        <p class="text-center text-muted mb-4">Envie sua solicitação sobre privacidade de dados. Responderemos em até <strong>15 dias corridos</strong>.</p>
+        <div class="request-card">
+          <form action="mailto:privacidade@wozza.app" method="get" enctype="text/plain">
+            <div class="form-group">
+              <label for="req-nome"><strong>Nome completo</strong></label>
+              <input type="text" class="form-control" id="req-nome" name="nome" placeholder="Seu nome" required>
+            </div>
+            <div class="form-group">
+              <label for="req-email"><strong>E-mail</strong></label>
+              <input type="email" class="form-control" id="req-email" name="email" placeholder="seu@email.com" required>
+            </div>
+            <div class="form-group">
+              <label for="req-tipo"><strong>Tipo de solicitação</strong></label>
+              <select class="form-control" id="req-tipo" name="tipo" required>
+                <option value="">Selecione...</option>
+                <option>Confirmação de existência de tratamento</option>
+                <option>Acesso aos meus dados</option>
+                <option>Correção de dados incompletos ou inexatos</option>
+                <option>Anonimização, bloqueio ou eliminação de dados</option>
+                <option>Portabilidade de dados</option>
+                <option>Eliminação de dados tratados com base no consentimento</option>
+                <option>Informação sobre compartilhamento de dados</option>
+                <option>Revogação de consentimento</option>
+                <option>Oposição ao tratamento</option>
+                <option>Outra solicitação</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="req-msg"><strong>Descreva sua solicitação</strong></label>
+              <textarea class="form-control" id="req-msg" name="mensagem" rows="4" placeholder="Descreva com detalhes o que você precisa..." required></textarea>
+            </div>
+            <p class="small text-muted">Ao enviar, você concorda que coletaremos os dados fornecidos neste formulário exclusivamente para atender à sua solicitação.</p>
+            <button type="submit" class="btn btn-primary btn-block">Enviar solicitação</button>
+          </form>
+          <p class="small text-center text-muted mt-3 mb-0">Ou envie diretamente para <a href="mailto:privacidade@wozza.app">privacidade@wozza.app</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Fale conosco -->
+<section id="fale-conosco" class="py-5 bg-white">
+  <div class="container">
+    <h2 class="section-heading text-center mb-4">Fale conosco</h2>
+    <div class="row justify-content-center">
+      <div class="col-md-4 mb-4 text-center">
+        <div class="p-4">
+          <div style="font-size:2.5rem;">&#128231;</div>
+          <h5 class="mt-2 font-weight-bold">E-mail de Privacidade</h5>
+          <p class="text-muted small">Para dúvidas e solicitações relacionadas à privacidade e proteção de dados.</p>
+          <a href="mailto:privacidade@wozza.app" class="btn btn-outline-primary">privacidade@wozza.app</a>
+        </div>
+      </div>
+      <div class="col-md-4 mb-4 text-center">
+        <div class="p-4">
+          <div style="font-size:2.5rem;">&#128196;</div>
+          <h5 class="mt-2 font-weight-bold">Política de Privacidade</h5>
+          <p class="text-muted small">Documento completo sobre como coletamos, usamos e protegemos seus dados.</p>
+          <a href="/privacy-policy" class="btn btn-outline-primary">Ler política</a>
+        </div>
+      </div>
+      <div class="col-md-4 mb-4 text-center">
+        <div class="p-4">
+          <div style="font-size:2.5rem;">&#127981;</div>
+          <h5 class="mt-2 font-weight-bold">ANPD</h5>
+          <p class="text-muted small">Se sua solicitação não for atendida, você pode recorrer à Autoridade Nacional de Proteção de Dados.</p>
+          <a href="https://www.gov.br/anpd" target="_blank" rel="noopener" class="btn btn-outline-secondary">gov.br/anpd</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="bg-dark text-light pt-4 pb-3">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-4 mb-3">
+        <strong>Wozza</strong>
+        <p class="small text-muted mt-1">Plataforma de gestão e monitoramento de redes sociais.</p>
+      </div>
+      <div class="col-md-4 mb-3">
+        <strong class="small text-uppercase text-muted">Legal</strong>
+        <ul class="list-unstyled mt-1 small">
+          <li><a href="/portal-privacidade">Portal da Privacidade</a></li>
+          <li><a href="/privacy-policy">Política de Privacidade</a></li>
+          <li><a href="/terms-of-service">Termos de Serviço</a></li>
+        </ul>
+      </div>
+      <div class="col-md-4 mb-3">
+        <strong class="small text-uppercase text-muted">Contato</strong>
+        <ul class="list-unstyled mt-1 small">
+          <li><a href="mailto:privacidade@wozza.app">privacidade@wozza.app</a></li>
+        </ul>
+      </div>
+    </div>
+    <hr class="border-secondary">
+    <p class="text-center text-muted small mb-0">&copy; 2026 Wozza. Todos os direitos reservados.</p>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // Smooth scroll for anchor links
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      const target = document.querySelector(a.getAttribute('href'));
+      if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    });
+  });
+  // Update active pill on scroll
+  const sections = ['lgpd','compromisso','seus-direitos','solicitacao','fale-conosco'];
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && window.scrollY >= el.offsetTop - 100) current = id;
+    });
+    document.querySelectorAll('.nav-pills-portal .nav-link').forEach(link => {
+      link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+    });
+  });
+</script>
+</body>
+</html>
