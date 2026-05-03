@@ -9,6 +9,10 @@ const port = process.env.PORT || 4000;
 const APP_URL = (process.env.APP_URL || `http://localhost:${port}`).replace(/\/$/, '');
 let dbInitPromise = null;
 
+function env(name) {
+    return String(process.env[name] || '').trim();
+}
+
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: false }));
 
@@ -515,16 +519,17 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
 app.get('/api/auth/social/status', (req, res) => {
     res.json({
-        google: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
-        facebook: !!(process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET)
+        google: !!(env('GOOGLE_CLIENT_ID') && env('GOOGLE_CLIENT_SECRET')),
+        facebook: !!(env('FACEBOOK_CLIENT_ID') && env('FACEBOOK_CLIENT_SECRET'))
     });
 });
 
 app.get('/auth/google/start', (req, res) => {
-    if (!process.env.GOOGLE_CLIENT_ID) return res.redirect('/login?auth_error=Google não configurado');
+    const googleClientId = env('GOOGLE_CLIENT_ID');
+    if (!googleClientId) return res.redirect('/login?auth_error=Google não configurado');
     const returnTo = String(req.query.returnTo || '/dashboard');
     const params = new URLSearchParams({
-        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_id: googleClientId,
         redirect_uri: `${authBaseUrl(req)}/auth/google/callback`,
         response_type: 'code',
         scope: 'openid email profile',
@@ -544,8 +549,8 @@ app.get('/auth/google/callback', async (req, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({
-                client_id: process.env.GOOGLE_CLIENT_ID,
-                client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                client_id: env('GOOGLE_CLIENT_ID'),
+                client_secret: env('GOOGLE_CLIENT_SECRET'),
                 code,
                 grant_type: 'authorization_code',
                 redirect_uri: `${authBaseUrl(req)}/auth/google/callback`
@@ -571,10 +576,11 @@ app.get('/auth/google/callback', async (req, res) => {
 });
 
 app.get('/auth/facebook/start', (req, res) => {
-    if (!process.env.FACEBOOK_CLIENT_ID) return res.redirect('/login?auth_error=Facebook não configurado');
+    const facebookClientId = env('FACEBOOK_CLIENT_ID');
+    if (!facebookClientId) return res.redirect('/login?auth_error=Facebook não configurado');
     const returnTo = String(req.query.returnTo || '/dashboard');
     const params = new URLSearchParams({
-        client_id: process.env.FACEBOOK_CLIENT_ID,
+        client_id: facebookClientId,
         redirect_uri: `${authBaseUrl(req)}/auth/facebook/callback`,
         response_type: 'code',
         scope: 'email,public_profile',
@@ -593,8 +599,8 @@ app.get('/auth/facebook/callback', async (req, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({
-                client_id: process.env.FACEBOOK_CLIENT_ID,
-                client_secret: process.env.FACEBOOK_CLIENT_SECRET,
+                client_id: env('FACEBOOK_CLIENT_ID'),
+                client_secret: env('FACEBOOK_CLIENT_SECRET'),
                 code,
                 redirect_uri: `${authBaseUrl(req)}/auth/facebook/callback`
             })
@@ -626,11 +632,12 @@ const META_SCOPES = [
 app.get('/auth/meta/start', (req, res) => {
     const platform = String(req.query.platform || 'INSTAGRAM').toUpperCase();
     const schoolId = String(req.query.school_id || 'wozza-default-school');
-    if (!process.env.META_APP_ID) {
+    const metaAppId = env('META_APP_ID');
+    if (!metaAppId) {
         return res.redirect(`/social-monitor?oauth_error=${encodeURIComponent('META_APP_ID não configurado no .env')}&platform=${platform}`);
     }
     const params = new URLSearchParams({
-        client_id: process.env.META_APP_ID,
+        client_id: metaAppId,
         redirect_uri: oauthRedirectUri('meta'),
         scope: META_SCOPES,
         response_type: 'code',
@@ -650,13 +657,13 @@ app.get('/auth/meta/callback', async (req, res) => {
         const tokenRes = await fetchJson('https://graph.facebook.com/v19.0/oauth/access_token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ client_id: process.env.META_APP_ID, client_secret: process.env.META_APP_SECRET, redirect_uri: oauthRedirectUri('meta'), code })
+            body: new URLSearchParams({ client_id: env('META_APP_ID'), client_secret: env('META_APP_SECRET'), redirect_uri: oauthRedirectUri('meta'), code })
         });
         if (!tokenRes.ok) throw new Error(tokenRes.data?.error?.message || 'Falha ao obter token');
         const shortToken = tokenRes.data.access_token;
 
         const longRes = await fetchJson(
-            `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${process.env.META_APP_ID}&client_secret=${process.env.META_APP_SECRET}&fb_exchange_token=${shortToken}`
+            `https://graph.facebook.com/v19.0/oauth/access_token?${new URLSearchParams({ grant_type: 'fb_exchange_token', client_id: env('META_APP_ID'), client_secret: env('META_APP_SECRET'), fb_exchange_token: shortToken })}`
         );
         const accessToken = longRes.ok ? longRes.data.access_token : shortToken;
 
@@ -700,11 +707,12 @@ app.get('/auth/meta/callback', async (req, res) => {
 
 app.get('/auth/tiktok/start', (req, res) => {
     const schoolId = String(req.query.school_id || 'wozza-default-school');
-    if (!process.env.TIKTOK_APP_ID) {
+    const tiktokAppId = env('TIKTOK_APP_ID');
+    if (!tiktokAppId) {
         return res.redirect(`/social-monitor?oauth_error=${encodeURIComponent('TIKTOK_APP_ID não configurado no .env')}&platform=TIKTOK`);
     }
     const params = new URLSearchParams({
-        app_id: process.env.TIKTOK_APP_ID,
+        app_id: tiktokAppId,
         state: oauthState('TIKTOK', schoolId),
         redirect_uri: oauthRedirectUri('tiktok'),
         scope: 'user.info.basic,video.list,comment.list,comment.list.manage'
@@ -720,7 +728,7 @@ app.get('/auth/tiktok/callback', async (req, res) => {
         const tokenRes = await fetchJson('https://open.tiktokapis.com/v2/oauth/token/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ client_key: process.env.TIKTOK_APP_ID, client_secret: process.env.TIKTOK_APP_SECRET, code, grant_type: 'authorization_code', redirect_uri: oauthRedirectUri('tiktok') })
+            body: new URLSearchParams({ client_key: env('TIKTOK_APP_ID'), client_secret: env('TIKTOK_APP_SECRET'), code, grant_type: 'authorization_code', redirect_uri: oauthRedirectUri('tiktok') })
         });
         if (!tokenRes.ok) throw new Error(tokenRes.data?.error?.message || 'Falha ao obter token TikTok');
         const { open_id } = tokenRes.data;
@@ -741,12 +749,13 @@ app.get('/auth/tiktok/callback', async (req, res) => {
 
 app.get('/auth/linkedin/start', (req, res) => {
     const schoolId = String(req.query.school_id || 'wozza-default-school');
-    if (!process.env.LINKEDIN_CLIENT_ID) {
+    const linkedInClientId = env('LINKEDIN_CLIENT_ID');
+    if (!linkedInClientId) {
         return res.redirect(`/social-monitor?oauth_error=${encodeURIComponent('LINKEDIN_CLIENT_ID não configurado no .env')}&platform=LINKEDIN`);
     }
     const params = new URLSearchParams({
         response_type: 'code',
-        client_id: process.env.LINKEDIN_CLIENT_ID,
+        client_id: linkedInClientId,
         redirect_uri: oauthRedirectUri('linkedin'),
         state: oauthState('LINKEDIN', schoolId),
         scope: 'r_organization_admin w_organization_social r_organization_social'
@@ -762,7 +771,7 @@ app.get('/auth/linkedin/callback', async (req, res) => {
         const tokenRes = await fetchJson('https://www.linkedin.com/oauth/v2/accessToken', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: oauthRedirectUri('linkedin'), client_id: process.env.LINKEDIN_CLIENT_ID, client_secret: process.env.LINKEDIN_CLIENT_SECRET })
+            body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: oauthRedirectUri('linkedin'), client_id: env('LINKEDIN_CLIENT_ID'), client_secret: env('LINKEDIN_CLIENT_SECRET') })
         });
         if (!tokenRes.ok) throw new Error(tokenRes.data?.error_description || 'Falha ao obter token LinkedIn');
         const { access_token } = tokenRes.data;
@@ -783,9 +792,9 @@ app.get('/auth/linkedin/callback', async (req, res) => {
 
 app.get('/api/oauth/status', (req, res) => {
     res.json({
-        meta:     !!(process.env.META_APP_ID && process.env.META_APP_SECRET),
-        tiktok:   !!(process.env.TIKTOK_APP_ID && process.env.TIKTOK_APP_SECRET),
-        linkedin: !!(process.env.LINKEDIN_CLIENT_ID && process.env.LINKEDIN_CLIENT_SECRET)
+        meta:     !!(env('META_APP_ID') && env('META_APP_SECRET')),
+        tiktok:   !!(env('TIKTOK_APP_ID') && env('TIKTOK_APP_SECRET')),
+        linkedin: !!(env('LINKEDIN_CLIENT_ID') && env('LINKEDIN_CLIENT_SECRET'))
     });
 });
 
