@@ -12,6 +12,8 @@ const sql = (strings, ...values) => getClient()(strings, ...values);
 // ─── Schema ──────────────────────────────────────────────────────────────────
 
 async function ensureSchema() {
+    await sql`CREATE EXTENSION IF NOT EXISTS pgcrypto`;
+
     await sql`
         CREATE TABLE IF NOT EXISTS social_channel_configs (
             id                        TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -99,6 +101,60 @@ async function ensureSchema() {
 
     await sql`
         CREATE INDEX IF NOT EXISTS idx_sp_school ON social_posts(school_id, published_at DESC)
+    `;
+
+    await sql`
+        CREATE TABLE IF NOT EXISTS app_users (
+            id                   TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+            email                TEXT NOT NULL UNIQUE,
+            name                 TEXT NOT NULL DEFAULT '',
+            password_hash        TEXT,
+            password_salt        TEXT,
+            role                 TEXT NOT NULL DEFAULT 'admin',
+            school_id            TEXT NOT NULL DEFAULT 'wozza-default-school',
+            status               TEXT NOT NULL DEFAULT 'invited',
+            avatar_url           TEXT,
+            auth_provider        TEXT,
+            provider_id          TEXT,
+            first_login_required BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+            last_login_at        TIMESTAMPTZ
+        )
+    `;
+
+    await sql`
+        CREATE INDEX IF NOT EXISTS idx_app_users_provider ON app_users(auth_provider, provider_id)
+    `;
+
+    await sql`
+        CREATE TABLE IF NOT EXISTS auth_sessions (
+            id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+            user_id    TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+            token_hash TEXT NOT NULL UNIQUE,
+            expires_at TIMESTAMPTZ NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    `;
+
+    await sql`
+        CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id)
+    `;
+
+    await sql`
+        CREATE TABLE IF NOT EXISTS auth_password_tokens (
+            id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+            user_id    TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+            token_hash TEXT NOT NULL UNIQUE,
+            purpose    TEXT NOT NULL,
+            expires_at TIMESTAMPTZ NOT NULL,
+            used_at    TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    `;
+
+    await sql`
+        CREATE INDEX IF NOT EXISTS idx_auth_password_tokens_user ON auth_password_tokens(user_id, purpose)
     `;
 }
 
@@ -288,6 +344,144 @@ async function getPostsByDateRange(schoolId, from, to) {
     `;
 }
 
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+function normalizeEmail(email) {
+    return String(email || '').trim().toLowerCase();
+}
+
+function publicUser(row) {
+    if (!row) return null;
+    return {
+        id: row.id,
+        email: row.email,
+        name: row.name,
+        role: row.role,
+        school_id: row.school_id,
+        status: row.status,
+        avatar_url: row.avatar_url,
+        first_login_required: row.first_login_required
+    };
+}
+
+async function countAppUsers() {
+    const rows = await sql`SELECT COUNT(*)::int AS total FROM app_users`;
+    return rows[0]?.total || 0;
+}
+
+async function findUserByEmail(email) {
+    const rows = await sql`SELECT * FROM app_users WHERE email = ${normalizeEmail(email)}`;
+    return rows[0] || null;
+}
+
+async function findUserById(id) {
+    const rows = await sql`SELECT * FROM app_users WHERE id = ${id}`;
+    return rows[0] || null;
+}
+
+async function findUserByProvider(provider, providerId) {
+    const rows = await sql`
+        SELECT * FROM app_users
+        WHERE auth_provider = ${provider} AND provider_id = ${String(providerId || '')}
+    `;
+    return rows[0] || null;
+}
+
+async function createInvitedUser({ email, name, role = 'admin', school_id = 'wozza-default-school' }) {
+    const rows = await sql`
+        INSERT INTO app_users (id, email, name, role, school_id, status, first_login_required)
+        VALUES (gen_random_uuid()::text, ${normalizeEmail(email)}, ${name || ''}, ${role}, ${school_id}, 'invited', true)
+        ON CONFLICT (email) DO UPDATE SET
+            name = COALESCE(NULLIF(EXCLUDED.name, ''), app_users.name),
+            updated_at = now()
+        RETURNING *
+    `;
+    return rows[0];
+}
+
+async function upsertSocialUser({ email, name, avatar_url, provider, provider_id, school_id = 'wozza-default-school' }) {
+    const normalized = normalizeEmail(email);
+    const rows = await sql`
+        INSERT INTO app_users (id, email, name, role, school_id, status, avatar_url, auth_provider, provider_id, first_login_required, last_login_at)
+        VALUES (gen_random_uuid()::text, ${normalized}, ${name || normalized}, 'admin', ${school_id}, 'active', ${avatar_url || null}, ${provider}, ${String(provider_id || '')}, false, now())
+        ON CONFLICT (email) DO UPDATE SET
+            name = COALESCE(NULLIF(EXCLUDED.name, ''), app_users.name),
+            avatar_url = COALESCE(EXCLUDED.avatar_url, app_users.avatar_url),
+            auth_provider = EXCLUDED.auth_provider,
+            provider_id = EXCLUDED.provider_id,
+            status = 'active',
+            first_login_required = false,
+            last_login_at = now(),
+            updated_at = now()
+        RETURNING *
+    `;
+    return rows[0];
+}
+
+async function setUserPassword(userId, passwordHash, passwordSalt) {
+    const rows = await sql`
+        UPDATE app_users SET
+            password_hash = ${passwordHash},
+            password_salt = ${passwordSalt},
+            status = 'active',
+            first_login_required = false,
+            updated_at = now()
+        WHERE id = ${userId}
+        RETURNING *
+    `;
+    return rows[0] || null;
+}
+
+async function createPasswordToken(userId, tokenHash, purpose, expiresAt) {
+    await sql`
+        UPDATE auth_password_tokens SET used_at = now()
+        WHERE user_id = ${userId} AND purpose = ${purpose} AND used_at IS NULL
+    `;
+    const rows = await sql`
+        INSERT INTO auth_password_tokens (id, user_id, token_hash, purpose, expires_at)
+        VALUES (gen_random_uuid()::text, ${userId}, ${tokenHash}, ${purpose}, ${expiresAt}::timestamptz)
+        RETURNING *
+    `;
+    return rows[0];
+}
+
+async function consumePasswordToken(tokenHash, purpose) {
+    const rows = await sql`
+        UPDATE auth_password_tokens SET used_at = now()
+        WHERE token_hash = ${tokenHash}
+          AND purpose = ${purpose}
+          AND used_at IS NULL
+          AND expires_at > now()
+        RETURNING *
+    `;
+    return rows[0] || null;
+}
+
+async function createAuthSession(userId, tokenHash, expiresAt) {
+    const rows = await sql`
+        INSERT INTO auth_sessions (id, user_id, token_hash, expires_at)
+        VALUES (gen_random_uuid()::text, ${userId}, ${tokenHash}, ${expiresAt}::timestamptz)
+        RETURNING *
+    `;
+    await sql`UPDATE app_users SET last_login_at = now() WHERE id = ${userId}`;
+    return rows[0];
+}
+
+async function getUserBySessionToken(tokenHash) {
+    const rows = await sql`
+        SELECT u.*
+        FROM auth_sessions s
+        JOIN app_users u ON u.id = s.user_id
+        WHERE s.token_hash = ${tokenHash} AND s.expires_at > now()
+        LIMIT 1
+    `;
+    return rows[0] || null;
+}
+
+async function deleteAuthSession(tokenHash) {
+    await sql`DELETE FROM auth_sessions WHERE token_hash = ${tokenHash}`;
+}
+
 module.exports = {
     sql, ensureSchema,
     ensureAllSocialPlatforms, getConfig, upsertConfig,
@@ -295,5 +489,10 @@ module.exports = {
     insertAlert, getOpenAlerts, closeAlertsForMessage, setAlertsInProgress,
     getReplyConfig, upsertReplyConfig,
     insertPost, getPostsByDateRange,
+    countAppUsers, findUserByEmail, findUserById, findUserByProvider,
+    createInvitedUser, upsertSocialUser, setUserPassword,
+    createPasswordToken, consumePasswordToken,
+    createAuthSession, getUserBySessionToken, deleteAuthSession,
+    publicUser, normalizeEmail,
     PLATFORMS
 };

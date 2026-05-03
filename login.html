@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wozza | Login</title>
+  <link rel="stylesheet" href="/fontawesome/css/all.min.css">
+  <link rel="stylesheet" href="/adminlte/css/adminlte.min.css">
+  <style>
+    html, body { min-height: 100%; }
+    body { margin: 0; background: #f5f7fb; color: #1f2937; }
+    .auth-shell { min-height: 100vh; display: grid; grid-template-columns: minmax(320px, 0.92fr) minmax(360px, 1.08fr); }
+    .auth-panel { background: #0f172a; color: #fff; padding: 56px; display: flex; flex-direction: column; justify-content: space-between; }
+    .brand-mark { display: inline-flex; align-items: center; gap: 12px; font-size: 28px; font-weight: 800; }
+    .brand-icon { width: 44px; height: 44px; border-radius: 8px; background: #14b8a6; color: #0f172a; display: inline-flex; align-items: center; justify-content: center; }
+    .auth-copy h1 { font-size: 42px; line-height: 1.08; font-weight: 800; margin: 0 0 18px; }
+    .auth-copy p { max-width: 520px; color: #cbd5e1; font-size: 18px; }
+    .auth-meta { color: #94a3b8; font-size: 14px; }
+    .auth-main { display: flex; align-items: center; justify-content: center; padding: 40px 24px; background: #fff; }
+    .login-box { width: 430px; max-width: 100%; }
+    .login-title { font-size: 26px; font-weight: 800; margin-bottom: 6px; }
+    .login-subtitle { color: #64748b; margin-bottom: 28px; }
+    .form-control { height: 52px; border-radius: 8px 0 0 8px; background: #f8fafc; }
+    .input-group-text { width: 52px; justify-content: center; border-radius: 0 8px 8px 0; background: #f8fafc; }
+    .btn-auth { height: 52px; border-radius: 8px; font-weight: 700; }
+    .btn-primary { background: #0f766e; border-color: #0f766e; }
+    .btn-primary:hover { background: #115e59; border-color: #115e59; }
+    .social-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .divider { display: flex; align-items: center; gap: 12px; color: #94a3b8; font-size: 13px; margin: 22px 0; }
+    .divider::before, .divider::after { content: ''; height: 1px; background: #e2e8f0; flex: 1; }
+    .auth-link { color: #0f766e; font-weight: 700; }
+    .hidden { display: none !important; }
+    @media (max-width: 900px) { .auth-shell { grid-template-columns: 1fr; } .auth-panel { padding: 32px; gap: 36px; } .auth-copy h1 { font-size: 32px; } }
+  </style>
+</head>
+<body>
+  <main class="auth-shell">
+    <section class="auth-panel">
+      <a class="brand-mark text-white" href="/login" aria-label="Wozza">
+        <span class="brand-icon"><i class="fas fa-shield-alt"></i></span>
+        <span>Wozza</span>
+      </a>
+      <div class="auth-copy">
+        <h1>Central segura para sua operação social.</h1>
+        <p>Entre para acompanhar mensagens, alertas e integrações do Wozza.</p>
+      </div>
+      <div class="auth-meta">
+        <a class="text-reset mr-3" href="/privacy-policy.html">Privacidade</a>
+        <a class="text-reset" href="/terms-of-service.html">Termos</a>
+      </div>
+    </section>
+
+    <section class="auth-main">
+      <div class="login-box">
+        <h1 class="login-title">Acessar painel</h1>
+        <p class="login-subtitle">Use sua conta Wozza para continuar.</p>
+
+        <div id="auth-error" class="alert alert-danger hidden" role="alert"></div>
+        <div id="auth-success" class="alert alert-success hidden" role="alert"></div>
+
+        <form id="login-form" autocomplete="on">
+          <div class="input-group mb-3">
+            <input type="email" id="email" class="form-control" placeholder="E-mail" autocomplete="email" required>
+            <div class="input-group-append"><span class="input-group-text"><i class="fas fa-envelope"></i></span></div>
+          </div>
+
+          <div class="input-group mb-3">
+            <input type="password" id="password" class="form-control" placeholder="Senha" autocomplete="current-password" required>
+            <div class="input-group-append">
+              <button type="button" class="input-group-text border-left-0" id="toggle-password" aria-label="Mostrar senha"><i class="fas fa-eye"></i></button>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <div class="custom-control custom-checkbox">
+              <input type="checkbox" class="custom-control-input" id="remember" checked>
+              <label class="custom-control-label" for="remember">Manter conectado</label>
+            </div>
+            <a class="auth-link" href="/forgot-password">Esqueci a senha</a>
+          </div>
+
+          <button type="submit" id="login-button" class="btn btn-primary btn-block btn-auth">
+            <i class="fas fa-sign-in-alt mr-2"></i>Entrar
+          </button>
+        </form>
+
+        <div class="divider">ou</div>
+
+        <div class="social-grid">
+          <a id="google-login" class="btn btn-outline-danger btn-auth" href="/auth/google/start"><i class="fab fa-google mr-2"></i>Google</a>
+          <a id="facebook-login" class="btn btn-outline-primary btn-auth" href="/auth/facebook/start"><i class="fab fa-facebook-f mr-2"></i>Facebook</a>
+        </div>
+
+        <p class="mt-4 mb-0 text-center">
+          <a class="auth-link" href="/first-password">Criar primeira senha</a>
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const returnTo = params.get('returnTo') || '/dashboard';
+    const errorBox = document.getElementById('auth-error');
+    const successBox = document.getElementById('auth-success');
+    const loginButton = document.getElementById('login-button');
+
+    function showMessage(box, message) {
+      box.textContent = message;
+      box.classList.remove('hidden');
+    }
+
+    const authError = params.get('auth_error');
+    if (authError) showMessage(errorBox, authError);
+    if (params.get('reset_ok')) showMessage(successBox, 'Senha atualizada. Você já pode entrar.');
+
+    document.getElementById('google-login').href = `/auth/google/start?returnTo=${encodeURIComponent(returnTo)}`;
+    document.getElementById('facebook-login').href = `/auth/facebook/start?returnTo=${encodeURIComponent(returnTo)}`;
+
+    fetch('/api/auth/social/status')
+      .then((res) => res.json())
+      .then((status) => {
+        if (!status.google) document.getElementById('google-login').classList.add('disabled');
+        if (!status.facebook) document.getElementById('facebook-login').classList.add('disabled');
+      })
+      .catch(() => {});
+
+    document.getElementById('toggle-password').addEventListener('click', () => {
+      const input = document.getElementById('password');
+      const icon = document.querySelector('#toggle-password i');
+      const visible = input.type === 'text';
+      input.type = visible ? 'password' : 'text';
+      icon.className = visible ? 'fas fa-eye' : 'fas fa-eye-slash';
+    });
+
+    document.getElementById('login-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      errorBox.classList.add('hidden');
+      loginButton.disabled = true;
+      loginButton.innerHTML = '<span class="spinner-border spinner-border-sm mr-2"></span>Entrando';
+
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: document.getElementById('email').value,
+            password: document.getElementById('password').value,
+            remember: document.getElementById('remember').checked
+          })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Falha ao entrar.');
+        window.location.href = returnTo || data.redirectTo || '/dashboard';
+      } catch (err) {
+        showMessage(errorBox, err.message);
+        loginButton.disabled = false;
+        loginButton.innerHTML = '<i class="fas fa-sign-in-alt mr-2"></i>Entrar';
+      }
+    });
+  </script>
+</body>
+</html>

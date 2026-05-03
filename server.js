@@ -9,6 +9,7 @@ const port = process.env.PORT || 4000;
 const APP_URL = (process.env.APP_URL || `http://localhost:${port}`).replace(/\/$/, '');
 
 app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: false }));
 
 // Servir arquivos estáticos
 app.use('/adminlte/plugins/jquery', express.static(path.join(__dirname, 'node_modules/jquery/dist')));
@@ -128,6 +129,332 @@ async function fetchJson(url, opts = {}) {
     try { return { ok: res.ok, status: res.status, data: JSON.parse(text) }; }
     catch { return { ok: false, status: res.status, data: { error: text } }; }
 }
+
+// ─── App auth helpers ────────────────────────────────────────────────────────
+
+const AUTH_COOKIE = 'wozza_session';
+const SESSION_DAYS = 7;
+const PASSWORD_TOKEN_MINUTES = 60;
+
+function sha256(value) {
+    return crypto.createHash('sha256').update(String(value || '')).digest('hex');
+}
+
+function createPasswordHash(password, salt = crypto.randomBytes(16).toString('hex')) {
+    const hash = crypto.pbkdf2Sync(String(password || ''), salt, 120000, 64, 'sha512').toString('hex');
+    return { hash, salt };
+}
+
+function verifyPassword(password, user) {
+    if (!user?.password_hash || !user?.password_salt) return false;
+    const { hash } = createPasswordHash(password, user.password_salt);
+    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(user.password_hash, 'hex'));
+}
+
+function validatePassword(password) {
+    const value = String(password || '');
+    return value.length >= 8
+        && /[A-Z]/.test(value)
+        && /[a-z]/.test(value)
+        && /[0-9]/.test(value)
+        && /[^A-Za-z0-9]/.test(value);
+}
+
+function readCookie(req, name) {
+    const cookie = String(req.headers.cookie || '');
+    const parts = cookie.split(';').map((part) => part.trim());
+    const found = parts.find((part) => part.startsWith(`${name}=`));
+    return found ? decodeURIComponent(found.slice(name.length + 1)) : '';
+}
+
+function setSessionCookie(req, res, token, remember) {
+    const maxAge = remember ? SESSION_DAYS * 24 * 60 * 60 : 24 * 60 * 60;
+    const requestProto = req.get('x-forwarded-proto') || req.protocol || '';
+    const secure = requestProto === 'https' || process.env.NODE_ENV === 'production';
+    res.setHeader('Set-Cookie', `${AUTH_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}; ${secure ? 'Secure; ' : ''}`.trim());
+}
+
+function clearSessionCookie(res) {
+    res.setHeader('Set-Cookie', `${AUTH_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+}
+
+function authBaseUrl(req) {
+    const host = req.get('x-forwarded-host') || req.get('host');
+    const proto = req.get('x-forwarded-proto') || req.protocol || 'http';
+    return (process.env.APP_URL || `${proto}://${host}`).replace(/\/$/, '');
+}
+
+async function requireCurrentUser(req) {
+    const token = readCookie(req, AUTH_COOKIE);
+    if (!token) return null;
+    return db.getUserBySessionToken(sha256(token));
+}
+
+async function createLoginSession(req, res, user, remember = true) {
+    const token = crypto.randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + (remember ? SESSION_DAYS : 1) * 24 * 60 * 60 * 1000).toISOString();
+    await db.createAuthSession(user.id, sha256(token), expiresAt);
+    setSessionCookie(req, res, token, remember);
+}
+
+async function sendAuthEmail({ to, subject, html, text }) {
+    if (process.env.RESEND_API_KEY && process.env.AUTH_EMAIL_FROM) {
+        const response = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ from: process.env.AUTH_EMAIL_FROM, to, subject, html, text })
+        });
+        if (!response.ok) throw new Error(`Falha ao enviar email (${response.status})`);
+        return true;
+    }
+    console.log(`[auth-email-dev] ${subject} -> ${to}\n${text}`);
+    return false;
+}
+
+function passwordTokenUrl(req, page, token) {
+    return `${authBaseUrl(req)}/${page}?token=${encodeURIComponent(token)}`;
+}
+
+function authOauthState(provider, returnTo = '/') {
+    return Buffer.from(JSON.stringify({ provider, returnTo, nonce: crypto.randomBytes(8).toString('hex') })).toString('base64url');
+}
+
+function parseAuthOauthState(state) {
+    try { return JSON.parse(Buffer.from(state, 'base64url').toString('utf8')); }
+    catch { return {}; }
+}
+
+async function issuePasswordToken(req, user, purpose, page) {
+    const token = crypto.randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + PASSWORD_TOKEN_MINUTES * 60 * 1000).toISOString();
+    await db.createPasswordToken(user.id, sha256(token), purpose, expiresAt);
+    const url = passwordTokenUrl(req, page, token);
+    await sendAuthEmail({
+        to: user.email,
+        subject: purpose === 'FIRST_PASSWORD' ? 'Crie sua primeira senha no Wozza' : 'Redefina sua senha no Wozza',
+        html: `<p>Olá${user.name ? `, ${user.name}` : ''}.</p><p>Acesse o link abaixo para continuar:</p><p><a href="${url}">${url}</a></p><p>O link expira em ${PASSWORD_TOKEN_MINUTES} minutos.</p>`,
+        text: `Acesse o link para continuar: ${url}\nO link expira em ${PASSWORD_TOKEN_MINUTES} minutos.`
+    });
+    return url;
+}
+
+// ─── App auth routes ─────────────────────────────────────────────────────────
+
+app.get('/api/auth/me', async (req, res) => {
+    try {
+        const user = await requireCurrentUser(req);
+        if (!user) return res.status(401).json({ authenticated: false });
+        return res.json({ authenticated: true, user: db.publicUser(user) });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+    const email = db.normalizeEmail(req.body?.email);
+    const password = String(req.body?.password || '');
+    const remember = req.body?.remember !== false;
+
+    if (!email || !password) return res.status(400).json({ error: 'Informe e-mail e senha.' });
+
+    try {
+        const user = await db.findUserByEmail(email);
+        if (!user || user.status !== 'active' || !verifyPassword(password, user)) {
+            return res.status(401).json({ error: 'E-mail ou senha inválidos.' });
+        }
+        await createLoginSession(req, res, user, remember);
+        return res.json({ user: db.publicUser(user), redirectTo: '/dashboard' });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/auth/logout', async (req, res) => {
+    const token = readCookie(req, AUTH_COOKIE);
+    try {
+        if (token) await db.deleteAuthSession(sha256(token));
+        clearSessionCookie(res);
+        return res.json({ ok: true });
+    } catch (err) {
+        clearSessionCookie(res);
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+    const email = db.normalizeEmail(req.body?.email);
+    if (!email) return res.status(400).json({ error: 'Informe seu e-mail.' });
+
+    try {
+        const user = await db.findUserByEmail(email);
+        let resetUrl = null;
+        if (user?.status === 'active') {
+            resetUrl = await issuePasswordToken(req, user, 'PASSWORD_RESET', 'reset-password');
+        }
+        return res.json({
+            ok: true,
+            message: 'Se o e-mail estiver cadastrado, enviaremos um link de recuperação.',
+            reset_url: process.env.NODE_ENV === 'production' ? undefined : resetUrl
+        });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/auth/first-password', async (req, res) => {
+    const email = db.normalizeEmail(req.body?.email);
+    const name = String(req.body?.name || '').trim();
+    if (!email) return res.status(400).json({ error: 'Informe seu e-mail.' });
+
+    try {
+        let user = await db.findUserByEmail(email);
+        const usersCount = await db.countAppUsers();
+
+        if (!user && usersCount === 0) {
+            user = await db.createInvitedUser({ email, name: name || email.split('@')[0], role: 'admin' });
+        }
+
+        let firstPasswordUrl = null;
+        if (user && (!user.password_hash || user.first_login_required || user.status === 'invited')) {
+            firstPasswordUrl = await issuePasswordToken(req, user, 'FIRST_PASSWORD', 'first-password');
+        }
+
+        return res.json({
+            ok: true,
+            message: 'Se houver convite pendente para este e-mail, enviaremos o link de primeira senha.',
+            first_password_url: process.env.NODE_ENV === 'production' ? undefined : firstPasswordUrl
+        });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+    const token = String(req.body?.token || '').trim();
+    const password = String(req.body?.password || '');
+    const purpose = String(req.body?.purpose || 'PASSWORD_RESET').toUpperCase();
+
+    if (!token) return res.status(400).json({ error: 'Token inválido.' });
+    if (!['PASSWORD_RESET', 'FIRST_PASSWORD'].includes(purpose)) return res.status(400).json({ error: 'Finalidade inválida.' });
+    if (!validatePassword(password)) return res.status(400).json({ error: 'A senha precisa ter 8 caracteres, maiúscula, minúscula, número e caractere especial.' });
+
+    try {
+        const tokenRow = await db.consumePasswordToken(sha256(token), purpose);
+        if (!tokenRow) return res.status(400).json({ error: 'Link inválido ou expirado.' });
+        const { hash, salt } = createPasswordHash(password);
+        const user = await db.setUserPassword(tokenRow.user_id, hash, salt);
+        await createLoginSession(req, res, user, true);
+        return res.json({ ok: true, user: db.publicUser(user), redirectTo: '/dashboard' });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/auth/social/status', (req, res) => {
+    res.json({
+        google: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+        facebook: !!(process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET)
+    });
+});
+
+app.get('/auth/google/start', (req, res) => {
+    if (!process.env.GOOGLE_CLIENT_ID) return res.redirect('/login?auth_error=Google não configurado');
+    const returnTo = String(req.query.returnTo || '/dashboard');
+    const params = new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        redirect_uri: `${authBaseUrl(req)}/auth/google/callback`,
+        response_type: 'code',
+        scope: 'openid email profile',
+        prompt: 'select_account',
+        state: authOauthState('google', returnTo)
+    });
+    res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+});
+
+app.get('/auth/google/callback', async (req, res) => {
+    const { code, state, error } = req.query;
+    const parsedState = parseAuthOauthState(state);
+    if (error || !code) return res.redirect(`/login?auth_error=${encodeURIComponent(error || 'Código ausente')}`);
+
+    try {
+        const tokenRes = await fetchJson('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                client_id: process.env.GOOGLE_CLIENT_ID,
+                client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                code,
+                grant_type: 'authorization_code',
+                redirect_uri: `${authBaseUrl(req)}/auth/google/callback`
+            })
+        });
+        if (!tokenRes.ok) throw new Error(tokenRes.data?.error_description || 'Falha no login Google');
+        const profileRes = await fetchJson('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${tokenRes.data.access_token}` }
+        });
+        if (!profileRes.ok || !profileRes.data?.email) throw new Error('Não foi possível obter o perfil Google');
+        const user = await db.upsertSocialUser({
+            email: profileRes.data.email,
+            name: profileRes.data.name,
+            avatar_url: profileRes.data.picture,
+            provider: 'google',
+            provider_id: profileRes.data.sub
+        });
+        await createLoginSession(req, res, user, true);
+        res.redirect(parsedState.returnTo || '/dashboard');
+    } catch (err) {
+        res.redirect(`/login?auth_error=${encodeURIComponent(err.message)}`);
+    }
+});
+
+app.get('/auth/facebook/start', (req, res) => {
+    if (!process.env.FACEBOOK_CLIENT_ID) return res.redirect('/login?auth_error=Facebook não configurado');
+    const returnTo = String(req.query.returnTo || '/dashboard');
+    const params = new URLSearchParams({
+        client_id: process.env.FACEBOOK_CLIENT_ID,
+        redirect_uri: `${authBaseUrl(req)}/auth/facebook/callback`,
+        response_type: 'code',
+        scope: 'email,public_profile',
+        state: authOauthState('facebook', returnTo)
+    });
+    res.redirect(`https://www.facebook.com/v19.0/dialog/oauth?${params}`);
+});
+
+app.get('/auth/facebook/callback', async (req, res) => {
+    const { code, state, error, error_description } = req.query;
+    const parsedState = parseAuthOauthState(state);
+    if (error || !code) return res.redirect(`/login?auth_error=${encodeURIComponent(error_description || error || 'Código ausente')}`);
+
+    try {
+        const tokenRes = await fetchJson('https://graph.facebook.com/v19.0/oauth/access_token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                client_id: process.env.FACEBOOK_CLIENT_ID,
+                client_secret: process.env.FACEBOOK_CLIENT_SECRET,
+                code,
+                redirect_uri: `${authBaseUrl(req)}/auth/facebook/callback`
+            })
+        });
+        if (!tokenRes.ok) throw new Error(tokenRes.data?.error?.message || 'Falha no login Facebook');
+        const profileRes = await fetchJson(`https://graph.facebook.com/v19.0/me?fields=id,name,email,picture&access_token=${tokenRes.data.access_token}`);
+        if (!profileRes.ok || !profileRes.data?.email) throw new Error('Não foi possível obter o e-mail do Facebook');
+        const user = await db.upsertSocialUser({
+            email: profileRes.data.email,
+            name: profileRes.data.name,
+            avatar_url: profileRes.data.picture?.data?.url,
+            provider: 'facebook',
+            provider_id: profileRes.data.id
+        });
+        await createLoginSession(req, res, user, true);
+        res.redirect(parsedState.returnTo || '/dashboard');
+    } catch (err) {
+        res.redirect(`/login?auth_error=${encodeURIComponent(err.message)}`);
+    }
+});
 
 // ─── OAuth — Meta ─────────────────────────────────────────────────────────────
 
@@ -291,6 +618,11 @@ app.get('/api/oauth/status', (req, res) => {
 // ─── Páginas ──────────────────────────────────────────────────────────────────
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'login.html')));
+app.get('/forgot-password', (req, res) => res.sendFile(path.join(__dirname, 'forgot-password.html')));
+app.get('/reset-password', (req, res) => res.sendFile(path.join(__dirname, 'reset-password.html')));
+app.get('/first-password', (req, res) => res.sendFile(path.join(__dirname, 'first-password.html')));
 app.get('/social-monitor', (req, res) => res.sendFile(path.join(__dirname, 'social-monitor.html')));
 
 // ─── API: Monitor Social ──────────────────────────────────────────────────────
