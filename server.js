@@ -632,10 +632,10 @@ app.get('/auth/facebook/callback', async (req, res) => {
 // ─── OAuth — Meta ─────────────────────────────────────────────────────────────
 
 const DEFAULT_META_SCOPES = [
-    'instagram_business_basic',
-    'instagram_business_manage_messages',
-    'instagram_business_manage_comments',
+    'instagram_basic',
+    'instagram_manage_comments',
     'pages_show_list',
+    'pages_read_engagement',
     'business_management'
 ].join(',');
 
