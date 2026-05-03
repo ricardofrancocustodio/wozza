@@ -631,10 +631,17 @@ app.get('/auth/facebook/callback', async (req, res) => {
 
 // ─── OAuth — Meta ─────────────────────────────────────────────────────────────
 
-const META_SCOPES = [
-    'instagram_basic', 'instagram_manage_messages', 'instagram_manage_comments',
-    'pages_show_list', 'pages_manage_metadata', 'pages_read_engagement', 'pages_messaging', 'business_management'
+const DEFAULT_META_SCOPES = [
+    'instagram_business_basic',
+    'instagram_business_manage_messages',
+    'instagram_business_manage_comments',
+    'pages_show_list',
+    'business_management'
 ].join(',');
+
+function metaScopes() {
+    return env('META_SCOPES') || DEFAULT_META_SCOPES;
+}
 
 app.get('/auth/meta/start', (req, res) => {
     const platform = String(req.query.platform || 'INSTAGRAM').toUpperCase();
@@ -646,7 +653,7 @@ app.get('/auth/meta/start', (req, res) => {
     const params = new URLSearchParams({
         client_id: metaAppId,
         redirect_uri: oauthRedirectUri(req, 'meta'),
-        scope: META_SCOPES,
+        scope: metaScopes(),
         response_type: 'code',
         state: oauthState(platform, schoolId)
     });
