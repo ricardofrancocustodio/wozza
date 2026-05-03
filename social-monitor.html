@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head id="component-head">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wozza | Monitor Social</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="/adminlte/css/adminlte.min.css">
+    <style>
+        body { opacity: 0; transition: opacity 0.4s ease-in-out; }
+        .social-hero {
+            background: linear-gradient(135deg, #203a43, #2c5364);
+            color: #fff;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 18px;
+            box-shadow: 0 14px 30px rgba(21, 37, 47, 0.18);
+        }
+        .hero-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.14);
+            margin-right: 8px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .flow-card, .connector-card {
+            border: 1px solid #d8e4ea;
+            border-radius: 14px;
+            background: #fff;
+            height: 100%;
+        }
+        .flow-step {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #e8f1f4;
+            color: #2c5364;
+            font-weight: 700;
+            margin-right: 10px;
+        }
+        .metric-card { border-left: 5px solid #2c5364; }
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+        .status-pill.connected { background: #d4edda; color: #155724; }
+        .status-pill.pending { background: #fff3cd; color: #856404; }
+        .status-pill.error { background: #f8d7da; color: #721c24; }
+        .status-pill.disabled { background: #e2e3e5; color: #495057; }
+        .alert-badge {
+            border-radius: 999px;
+            font-size: 11px;
+            padding: 5px 10px;
+            font-weight: 700;
+        }
+        .alert-badge.high { background: #f8d7da; color: #721c24; }
+        .alert-badge.medium { background: #fff3cd; color: #856404; }
+        .alert-badge.low { background: #d1ecf1; color: #0c5460; }
+        .table td, .table th { vertical-align: middle; }
+        .text-break-safe { white-space: pre-wrap; word-break: break-word; }
+        .empty-card {
+            border: 1px dashed #c9d6dd;
+            border-radius: 14px;
+            padding: 24px;
+            text-align: center;
+            color: #667783;
+            background: #fafcfd;
+        }
+        .simulator-card textarea { min-height: 110px; }
+
+        /* Layout do Feed: mobile-first, calendário sticky no desktop */
+        .sm-feed-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .sm-feed-side { width: 100%; }
+        .sm-feed-main { width: 100%; min-width: 0; }
+        .sm-cal-card { display: none; }
+        .sm-cal-card.sm-cal-open { display: block; }
+        @media (min-width: 768px) {
+            .sm-feed-layout { flex-direction: row; align-items: flex-start; }
+            .sm-feed-side { width: 320px; flex-shrink: 0; position: sticky; top: 70px; }
+            .sm-feed-main { flex: 1; max-width: 600px; margin: 0 auto; }
+            .sm-cal-toggle { display: none !important; }
+            .sm-cal-card { display: block !important; }
+        }
+        .sm-feed-day-header {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #8e8e8e;
+            letter-spacing: .04em;
+            padding: 14px 4px 6px;
+            border-bottom: 1px solid #efefef;
+            margin: 8px 0 12px;
+        }
+
+        /* Calendário de postagens */
+        #sm-cal-table { table-layout: fixed; }
+        #sm-cal-table th { font-size: 11px; font-weight: 700; color: #6c757d; text-transform: uppercase; padding: 4px 0; }
+        .sm-cal-cell { cursor: pointer; border-radius: 8px; padding: 6px 2px; font-size: 13px; transition: background .15s; }
+        .sm-cal-cell:hover { background: #e8f0fe; }
+        .sm-cal-cell.today { font-weight: 700; color: #007bff; }
+        .sm-cal-cell.selected { background: #007bff; color: #fff !important; }
+        .sm-cal-cell.selected:hover { background: #0056b3; }
+        .sm-cal-cell.other-month { color: #ccc; }
+        .sm-cal-cell.has-posts .sm-cal-dot { display: inline-block; }
+        .sm-cal-dot { display: none; width: 6px; height: 6px; border-radius: 50%; background: #007bff; margin: 2px auto 0; }
+        .sm-cal-cell.selected .sm-cal-dot { background: #fff; }
+        /* Card estilo feed */
+        .sm-post-card { border: 1px solid #dbdbdb; border-radius: 12px; margin-bottom: 18px; background: #fff; overflow: hidden; max-width: 540px; }
+        .sm-post-header { display: flex; align-items: center; padding: 12px 14px; gap: 10px; }
+        .sm-post-avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: #efefef; flex-shrink: 0; }
+        .sm-post-avatar-fallback { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #f09433, #dc2743, #bc1888); display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 14px; flex-shrink: 0; }
+        .sm-post-userblock { flex: 1; min-width: 0; line-height: 1.2; }
+        .sm-post-username { font-weight: 700; font-size: 13px; color: #262626; }
+        .sm-post-time { font-size: 11px; color: #8e8e8e; margin-top: 2px; }
+        .sm-post-media { width: 100%; aspect-ratio: 1 / 1; background: #000; position: relative; overflow: hidden; }
+        .sm-post-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .sm-post-media .sm-media-play { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); color: #fff; font-size: 48px; opacity: 0.85; pointer-events: none; text-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+        .sm-post-no-media { width: 100%; padding: 22px; background: #fafafa; color: #8e8e8e; text-align: center; font-size: 12px; border-top: 1px solid #efefef; border-bottom: 1px solid #efefef; }
+        .sm-post-stats { display: flex; gap: 16px; padding: 8px 14px 4px; font-size: 13px; color: #262626; }
+        .sm-post-stats span { display: inline-flex; align-items: center; gap: 5px; }
+        .sm-post-stats .fa-heart { color: #ed4956; }
+        .sm-post-stats .fa-comment { color: #262626; }
+        .sm-post-text { font-size: 13px; color: #262626; white-space: pre-wrap; word-break: break-word; padding: 4px 14px 8px; line-height: 1.4; }
+        .sm-post-text .sm-post-username-inline { font-weight: 700; margin-right: 6px; }
+        .sm-post-text-more { color: #8e8e8e; cursor: pointer; }
+        .sm-post-permalink { display: inline-block; padding: 0 14px 8px; font-size: 11px; color: #00376b; text-decoration: none; }
+        .sm-post-permalink:hover { text-decoration: underline; }
+        .sm-post-actions { padding: 4px 14px 12px; border-top: 1px solid #efefef; margin-top: 6px; }
+        .sm-net-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; border-radius: 999px; padding: 3px 9px; margin-right: 4px; margin-bottom: 4px; }
+        .sm-net-badge.ok { background: #d4edda; color: #155724; }
+        .sm-net-badge.fail { background: #f8d7da; color: #721c24; }
+        .sm-interactions-toggle { font-size: 12px; color: #00376b; cursor: pointer; padding: 6px 0; display: inline-block; }
+        .sm-interactions-toggle:hover { text-decoration: underline; }
+        .sm-interactions-wrap { border-top: 1px solid #efefef; margin-top: 6px; padding: 10px 0 0; }
+        .sm-interaction-item { padding: 8px 10px; border-radius: 8px; background: #f8f9fa; margin-bottom: 6px; font-size: 12px; }
+        .sm-interaction-item .sm-int-sender { font-weight: 700; color: #333; }
+        .sm-interaction-item .sm-int-text { color: #555; margin-top: 2px; white-space: pre-wrap; word-break: break-word; }
+        .sm-interaction-item .sm-int-meta { color: #999; font-size: 11px; margin-top: 3px; }
+        .sm-interaction-replies { margin-left: 28px; padding-left: 12px; border-left: 2px solid #efefef; margin-top: 4px; }
+        .sm-interaction-reply { background: #fff; border: 1px solid #efefef; }
+        .sm-int-reply-toggle { font-size: 11px; color: #00376b; cursor: pointer; margin-top: 4px; display: inline-block; }
+        .sm-int-reply-toggle:hover { text-decoration: underline; }
+        .sm-int-reply-form { margin-top: 6px; display: flex; gap: 6px; }
+        .sm-int-reply-form input { flex: 1; padding: 4px 8px; border: 1px solid #dbdbdb; border-radius: 6px; font-size: 12px; }
+        .sm-int-reply-form button { padding: 4px 10px; font-size: 12px; }
+        .sm-post-menu { position: absolute; top: 10px; right: 10px; }
+        .sm-post-header { position: relative; }
+        .sm-post-menu .dropdown-menu { font-size: 13px; min-width: 160px; }
+        .sm-post-menu-btn { background: transparent; border: none; color: #8e8e8e; padding: 4px 8px; cursor: pointer; }
+        .sm-post-menu-btn:hover { color: #262626; }
+    </style>
+</head>
+
+<body class="hold-transition sidebar-mini layout-fixed" data-page="social-monitor">
+<div class="wrapper">
+    <div id="component-header"></div>
+    <div id="component-sidebar"></div>
+
+    <div class="content-wrapper">
+        <section class="content-header pb-0">
+            <div class="container-fluid">
+                <div class="row mb-2">
+                    <div class="col-sm-8">
+                        <h1 class="m-0"><i class="fas fa-shield-alt mr-2"></i>Monitor Social</h1>
+                        <small class="text-muted">Central de triagem para directs e comentários de Instagram, Facebook, TikTok e LinkedIn.</small>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="content">
+            <div class="container-fluid">
+                <ul class="nav nav-tabs mb-3" id="sm-tabs" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" id="tab-calendario-link" data-toggle="tab" href="#tab-calendario" role="tab"><i class="fas fa-stream mr-2"></i>Feed</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="tab-monitor-link" data-toggle="tab" href="#tab-monitor" role="tab"><i class="fas fa-shield-alt mr-2"></i>Monitoramento</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="tab-publicar-link" data-toggle="tab" href="#tab-publicar" role="tab"><i class="fas fa-paper-plane mr-2"></i>Criar postagem</a>
+                    </li>
+                </ul>
+                <div class="tab-content" id="sm-tabs-content">
+                <div class="tab-pane fade" id="tab-monitor" role="tabpanel">
+                <div class="social-hero">
+                    <div class="row align-items-center">
+                        <div class="col-lg-8">
+                            <div class="small text-uppercase font-weight-bold mb-2" style="letter-spacing:.08em; opacity:.8;">Triagem inteligente</div>
+                            <h2 class="h3 mb-2">A IA separa o que pode receber resposta automática e bloqueia o que precisa de atuação manual da diretoria.</h2>
+                            <p class="mb-3" style="opacity:.92;">O fluxo fica assim: rede social envia a interação, a central classifica o teor, gera resposta segura quando permitido e abre alerta para crítica, reclamação, sugestão ou qualquer mensagem sensível.</p>
+                            <div>
+                                <span class="hero-chip"><i class="fab fa-instagram mr-2"></i>Instagram</span>
+                                <span class="hero-chip"><i class="fab fa-facebook mr-2"></i>Facebook</span>
+                                <span class="hero-chip"><i class="fab fa-tiktok mr-2"></i>TikTok</span>
+                                <span class="hero-chip"><i class="fab fa-linkedin mr-2"></i>LinkedIn</span>
+                                <span class="hero-chip"><i class="fas fa-user-shield mr-2"></i>Diretoria em fila manual</span>
+                            </div>
+                        </div>
+                        <div class="col-lg-4 mt-3 mt-lg-0">
+                            <div class="flow-card p-3">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="flow-step">1</span>
+                                    <div>
+                                        <div class="font-weight-bold">Ingestão</div>
+                                        <small class="text-muted">Directs e comentários entram na central</small>
+                                    </div>
+                                </div>
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="flow-step">2</span>
+                                    <div>
+                                        <div class="font-weight-bold">Classificação</div>
+                                        <small class="text-muted">IA decide entre responder ou escalar</small>
+                                    </div>
+                                </div>
+                                <div class="d-flex align-items-center">
+                                    <span class="flow-step">3</span>
+                                    <div>
+                                        <div class="font-weight-bold">Ação</div>
+                                        <small class="text-muted">Resposta automática ou providência manual</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row" id="social-metrics-row">
+                    <div class="col-md-3">
+                        <div class="card metric-card">
+                            <div class="card-body">
+                                <div class="text-muted small">Mensagens recebidas</div>
+                                <div class="h3 mb-0" id="sm-metric-received">0</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card metric-card">
+                            <div class="card-body">
+                                <div class="text-muted small">Respostas liberadas pela IA</div>
+                                <div class="h3 mb-0" id="sm-metric-auto">0</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card metric-card">
+                            <div class="card-body">
+                                <div class="text-muted small">Alertas sensíveis</div>
+                                <div class="h3 mb-0" id="sm-metric-sensitive">0</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card metric-card">
+                            <div class="card-body">
+                                <div class="text-muted small">Pendentes da diretoria</div>
+                                <div class="h3 mb-0" id="sm-metric-open">0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card card-outline card-danger">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h3 class="card-title mb-0">Fila sensível da diretoria</h3>
+                                <span class="text-muted small" id="sm-open-alerts-label">0 itens aguardando análise</span>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-sm mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Origem</th>
+                                                <th>Autor</th>
+                                                <th>Mensagem</th>
+                                                <th>Classificação</th>
+                                                <th class="text-right">Ação</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="social-alerts-list">
+                                            <tr><td colspan="5" class="text-center text-muted py-4">Carregando...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card card-outline card-primary">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h3 class="card-title mb-0">Últimas interações processadas</h3>
+                                <button class="btn btn-sm btn-outline-primary" id="sm-refresh-btn">
+                                    <i class="fas fa-sync-alt mr-1"></i>Atualizar
+                                </button>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-sm mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Data</th>
+                                                <th>Plataforma</th>
+                                                <th>Canal</th>
+                                                <th>Autor</th>
+                                                <th>Decisão</th>
+                                                <th>Status</th>
+                                                <th class="text-right">Ação</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="sm-messages-list">
+                                            <tr><td colspan="7" class="text-center text-muted py-4">Carregando...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card card-outline card-primary">
+                            <div class="card-header">
+                                <h3 class="card-title">Canais conectados</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="row" id="sm-connectors-list"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card card-outline card-secondary">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h3 class="card-title mb-0"><i class="fas fa-robot mr-2 text-secondary"></i>Respostas automáticas</h3>
+                            </div>
+                            <div class="card-body">
+
+                                <p class="text-muted small mb-3">A IA classifica cada interação recebida e decide automaticamente se responde ou escalona para a diretoria. Veja abaixo o comportamento por tipo de mensagem.</p>
+
+                                <div class="table-responsive mb-4">
+                                    <table class="table table-sm table-bordered mb-0" style="font-size:.85rem;">
+                                        <thead class="thead-light">
+                                            <tr>
+                                                <th style="width:15%">Tipo detectado</th>
+                                                <th style="width:15%">Canal</th>
+                                                <th style="width:20%">Resposta automática</th>
+                                                <th style="width:22%">Notificação à diretoria</th>
+                                                <th>Observação</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td><span class="badge badge-warning text-dark">💛 Elogio</span></td>
+                                                <td>Comentário público<br><small class="text-muted">(post, reel, story)</small></td>
+                                                <td><span class="badge badge-success">Auto-resposta imediata</span></td>
+                                                <td>—</td>
+                                                <td class="text-muted small">Proporcional ao elogio: "💛💚💙" para curtos, 1 frase para médios, 2-3 frases com identidade da escola para longos.</td>
+                                            </tr>
+                                            <tr>
+                                                <td><span class="badge badge-info">💡 Sugestão</span></td>
+                                                <td>Comentário público</td>
+                                                <td><span class="badge badge-success">Auto-resposta</span></td>
+                                                <td><span class="badge badge-secondary">📋 MÉDIA — e-mail</span></td>
+                                                <td class="text-muted small">Valida sem prometer implementação: "Adorei a ideia! Vou repassar agora mesmo para o setor responsável. 🏫✨"</td>
+                                            </tr>
+                                            <tr>
+                                                <td><span class="badge badge-danger">⚠️ Reclamação / Crítica</span></td>
+                                                <td>Qualquer</td>
+                                                <td>— <small class="text-muted">(sem resposta automática)</small></td>
+                                                <td><span class="badge badge-warning text-dark">⚠️ ALTA — e-mail + WhatsApp</span></td>
+                                                <td class="text-muted small">Aparece na fila vermelha acima. Diretoria recebe e-mail e WhatsApp imediatamente.</td>
+                                            </tr>
+                                            <tr>
+                                                <td><span class="badge badge-danger">🚨 Risco / Bullying</span></td>
+                                                <td>Qualquer</td>
+                                                <td>— <small class="text-muted">(sem resposta automática)</small></td>
+                                                <td><span class="badge badge-danger">🚨 URGENTE — e-mail + WhatsApp</span></td>
+                                                <td class="text-muted small">Notificação imediata com máxima prioridade. Fila vermelha urgente.</td>
+                                            </tr>
+                                            <tr>
+                                                <td><span class="badge badge-primary">❓ Dúvida / Geral</span></td>
+                                                <td>Qualquer</td>
+                                                <td><span class="badge badge-success">Auto-resposta via Base de Conhecimento</span></td>
+                                                <td>—</td>
+                                                <td class="text-muted small">Responde com informações da Base de Conhecimento (horários, matrículas, valores, etc.).</td>
+                                            </tr>
+                                            <tr>
+                                                <td><span class="badge badge-secondary">💬 Direct (DM)</span></td>
+                                                <td>Instagram / Facebook</td>
+                                                <td><span class="badge badge-success">Fluxo completo da Alva</span></td>
+                                                <td>—</td>
+                                                <td class="text-muted small">Agendamento de visita, suporte, dúvidas — mesmo fluxo do WhatsApp.</td>
+                                            </tr>
+                                            <tr>
+                                                <td><span class="badge badge-warning text-dark">💛 Elogio</span></td>
+                                                <td>DM privado</td>
+                                                <td>— <small class="text-muted">(exige toque humano)</small></td>
+                                                <td><small class="text-muted">Alerta LOW — sem notificação</small></td>
+                                                <td class="text-muted small">Registrado na fila. Sem envio proativo — gravidade baixa.</td>
+                                            </tr>
+                                            <tr>
+                                                <td><span class="badge badge-info">💡 Sugestão</span></td>
+                                                <td>DM privado</td>
+                                                <td>— <small class="text-muted">(exige toque humano)</small></td>
+                                                <td><span class="badge badge-secondary">📋 MÉDIA — e-mail</span></td>
+                                                <td class="text-muted small">Registrado na fila. Diretoria recebe e-mail (sem WhatsApp).</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <hr>
+                                <div class="d-flex align-items-center mb-3">
+                                    <i class="fas fa-sliders-h mr-2 text-secondary"></i>
+                                    <strong>Personalização da identidade</strong>
+                                    <span class="badge badge-secondary ml-2" id="sm-reply-config-status">não salvo</span>
+                                </div>
+                                <p class="text-muted small mb-3">As diretrizes de elogios e sugestões já estão incorporadas. Aqui você define apenas os termos que a IA vai usar para identificar a escola nas respostas.</p>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label for="sm-reply-bot-name">Nome da assistente</label>
+                                            <input type="text" id="sm-reply-bot-name" class="form-control" placeholder="Ex.: Alva" maxlength="80">
+                                            <small class="text-muted">Usado em "Olá! Aqui é a <strong>Alva</strong>."</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label for="sm-reply-identity">Frase de identidade</label>
+                                            <input type="text" id="sm-reply-identity" class="form-control" placeholder='Ex.: Família AVR' maxlength="120">
+                                            <small class="text-muted">Usada em elogios médios/longos: "orgulho de ser da <strong>Família AVR</strong>".</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label for="sm-reply-short-name">Sigla da escola</label>
+                                            <input type="text" id="sm-reply-short-name" class="form-control" placeholder="Ex.: AVR" maxlength="40">
+                                            <small class="text-muted">Usada em variações como "fazer da <strong>AVR</strong> um lugar melhor".</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <button class="btn btn-primary" id="sm-reply-config-save-btn">
+                                        <i class="fas fa-save mr-1"></i>Salvar personalização
+                                    </button>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </div><!-- /tab-monitor -->
+
+                <div class="tab-pane fade" id="tab-publicar" role="tabpanel">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="card card-outline card-primary">
+                                <div class="card-header">
+                                    <h3 class="card-title mb-0"><i class="fas fa-paper-plane mr-2"></i>Nova postagem</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div class="form-group">
+                                        <label for="sm-post-text">Texto da postagem</label>
+                                        <textarea id="sm-post-text" class="form-control" rows="6" maxlength="2200" placeholder="Escreva aqui o texto que será publicado nas redes selecionadas..."></textarea>
+                                        <small class="text-muted"><span id="sm-post-char-count">0</span>/2200 caracteres</small>
+                                    </div>
+                                    <div class="form-group mb-4">
+                                        <label class="d-block font-weight-bold">Publicar em</label>
+                                        <div id="sm-post-networks" class="d-flex flex-wrap mt-1" style="gap:.75rem;">
+                                            <span class="text-muted small">Carregando redes conectadas...</span>
+                                        </div>
+                                        <small class="text-muted mt-1 d-block">Apenas redes com status <strong>Conectado</strong> são listadas.</small>
+                                    </div>
+                                    <button class="btn btn-primary btn-lg" id="sm-post-submit-btn">
+                                        <i class="fas fa-paper-plane mr-1"></i>Publicar agora
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card card-outline card-secondary" id="sm-post-result-card" style="display:none;">
+                                <div class="card-header">
+                                    <h3 class="card-title mb-0"><i class="fas fa-tasks mr-2"></i>Resultado do envio</h3>
+                                </div>
+                                <div class="card-body" id="sm-post-result-body"></div>
+                            </div>
+                            <div class="card card-outline card-info">
+                                <div class="card-body py-3">
+                                    <div class="small font-weight-bold mb-2"><i class="fas fa-info-circle mr-1 text-info"></i>Como funciona</div>
+                                    <ul class="small text-muted pl-3 mb-0">
+                                        <li>O texto é enviado simultaneamente para as redes marcadas.</li>
+                                        <li>Falhas em uma rede não bloqueiam as demais.</li>
+                                        <li>O resultado por rede aparece ao lado após o envio.</li>
+                                        <li>Redes sem integração real retornam aviso de <em>não implementado</em>.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div><!-- /tab-publicar -->
+
+                <!-- FEED DE POSTAGENS -->
+                <div class="tab-pane fade show active" id="tab-calendario" role="tabpanel">
+                    <div class="sm-feed-layout">
+                        <!-- Coluna do calendário (sticky no desktop, collapsable no mobile) -->
+                        <aside class="sm-feed-side">
+                            <button class="btn btn-sm btn-outline-secondary sm-cal-toggle d-md-none mb-2 w-100" id="sm-cal-toggle">
+                                <i class="fas fa-calendar-alt mr-1"></i>Mostrar calendário
+                            </button>
+                            <div class="card card-outline card-primary sm-cal-card" id="sm-cal-card">
+                                <div class="card-header d-flex align-items-center justify-content-between p-2">
+                                    <button class="btn btn-sm btn-outline-secondary" id="sm-cal-prev"><i class="fas fa-chevron-left"></i></button>
+                                    <h3 class="card-title mb-0 text-center" id="sm-cal-title" style="min-width:140px; font-size:14px;">—</h3>
+                                    <button class="btn btn-sm btn-outline-secondary" id="sm-cal-next"><i class="fas fa-chevron-right"></i></button>
+                                </div>
+                                <div class="card-body p-2">
+                                    <table class="table table-sm table-borderless mb-0 text-center" id="sm-cal-table">
+                                        <thead><tr id="sm-cal-head"></tr></thead>
+                                        <tbody id="sm-cal-body"></tbody>
+                                    </table>
+                                </div>
+                                <div class="card-footer py-2 small text-muted">
+                                    <span class="sm-cal-dot" style="background:#007bff;"></span> dia com postagens
+                                </div>
+                            </div>
+                        </aside>
+
+                        <!-- Coluna do feed -->
+                        <main class="sm-feed-main">
+                            <div id="sm-feed-loading" class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status"><span class="sr-only">Carregando...</span></div>
+                            </div>
+                            <div id="sm-feed-empty" class="text-center text-muted py-5" style="display:none;">
+                                <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                                Nenhuma postagem encontrada.
+                            </div>
+                            <div id="sm-feed-list"></div>
+                            <div id="sm-feed-load-more-wrap" class="text-center py-3" style="display:none;">
+                                <button class="btn btn-outline-primary btn-sm" id="sm-feed-load-more">
+                                    <i class="fas fa-chevron-down mr-1"></i>Ver postagens mais antigas
+                                </button>
+                            </div>
+                            <div id="sm-feed-load-less-wrap" class="text-center py-2" style="display:none;">
+                                <button class="btn btn-outline-secondary btn-sm" id="sm-feed-load-less">
+                                    <i class="fas fa-chevron-up mr-1"></i>Ver menos
+                                </button>
+                            </div>
+                        </main>
+                    </div>
+                </div><!-- /tab-calendario -->
+
+                </div><!-- /tab-content -->
+            </div>
+        </section>
+    </div>
+    <div id="component-footer"></div>
+</div>
+
+<div class="modal fade" id="sm-config-modal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary">
+                <h5 class="modal-title text-white" id="sm-config-modal-title">Configurar canal social</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="sm-config-platform">
+
+                <div id="sm-config-summary" class="mb-3 p-3 rounded border" style="background:#f8f9fc;">
+                    <div class="d-flex flex-wrap align-items-center" style="gap:.5rem;">
+                        <span class="font-weight-bold mr-2">Status da integra&ccedil;&atilde;o:</span>
+                        <span id="sm-config-summary-overall" class="badge badge-secondary">Pendente</span>
+                    </div>
+                    <div class="mt-2 d-flex flex-wrap" id="sm-config-summary-pills" style="gap:.35rem;"></div>
+                    <div class="small text-muted mt-2" id="sm-config-summary-hint">Preencha os campos abaixo. Credenciais sens&iacute;veis ficam marcadas como <strong>SALVO</strong> quando guardadas; elas n&atilde;o s&atilde;o reexibidas por seguran&ccedil;a.</div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Conta exibida</label>
+                            <input type="text" id="sm-config-account-label" class="form-control" placeholder="Ex.: @escola_oficial">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Status da conexão</label>
+                            <select id="sm-config-connection-status" class="form-control">
+                                <option value="PENDING">Pendente</option>
+                                <option value="CONNECTED">Conectado</option>
+                                <option value="ERROR">Erro</option>
+                                <option value="DISABLED">Desativado</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="custom-control custom-switch mt-2">
+                            <input type="checkbox" class="custom-control-input" id="sm-config-enabled">
+                            <label class="custom-control-label" for="sm-config-enabled">Canal ativo</label>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="custom-control custom-switch mt-2">
+                            <input type="checkbox" class="custom-control-input" id="sm-config-auto-reply" checked>
+                            <label class="custom-control-label" for="sm-config-auto-reply">Auto resposta ativa</label>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="custom-control custom-switch mt-2">
+                            <input type="checkbox" class="custom-control-input" id="sm-config-notify-director" checked>
+                            <label class="custom-control-label" for="sm-config-notify-director">Notificar diretoria</label>
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
+
+                <div class="mb-2 font-weight-bold">Canais monitorados</div>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input sm-config-channel" id="sm-channel-direct" value="DIRECT">
+                            <label class="custom-control-label" for="sm-channel-direct">Direct</label>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input sm-config-channel" id="sm-channel-post" value="POST_COMMENT">
+                            <label class="custom-control-label" for="sm-channel-post">Comentário post</label>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input sm-config-channel" id="sm-channel-reel" value="REEL_COMMENT">
+                            <label class="custom-control-label" for="sm-channel-reel">Comentário vídeo</label>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input sm-config-channel" id="sm-channel-story" value="STORY_MENTION">
+                            <label class="custom-control-label" for="sm-channel-story">Menção/story</label>
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
+
+                <div class="mb-2 font-weight-bold">Referências da integração</div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>App ID</label>
+                            <input type="text" id="sm-config-app-id" class="form-control" placeholder="Opcional">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Page ID</label>
+                            <input type="text" id="sm-config-page-id" class="form-control" placeholder="Opcional">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Instagram Business ID</label>
+                            <input type="text" id="sm-config-instagram-business-id" class="form-control" placeholder="Opcional">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>TikTok Account ID</label>
+                            <input type="text" id="sm-config-tiktok-account-id" class="form-control" placeholder="Opcional">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>LinkedIn Organization ID</label>
+                            <input type="text" id="sm-config-linkedin-org-id" class="form-control" placeholder="Opcional">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group mb-0">
+                            <label>Verify token do webhook</label>
+                            <input type="text" id="sm-config-verify-token" class="form-control" placeholder="Token usado na verificação do webhook">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group mb-0">
+                            <label>Webhook path sugerido</label>
+                            <input type="text" id="sm-config-webhook-path" class="form-control" placeholder="/webhook/social/meta?school_id=...">
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
+
+                <!-- OAuth: conexão com 1 clique -->
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="font-weight-bold">Autenticação</span>
+                    <span class="small text-muted" id="sm-oauth-status-label"></span>
+                </div>
+                <div id="sm-oauth-section" class="mb-3">
+                    <!-- preenchido via JS de acordo com a plataforma -->
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-2" style="margin-top:1rem;">
+                    <span class="font-weight-bold text-muted small">Token manual (avançado)</span>
+                    <button type="button" class="btn btn-link btn-sm p-0" id="sm-creds-toggle" style="font-size:.8rem;">Mostrar</button>
+                </div>
+                <div id="sm-creds-section" style="display:none;">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="d-flex align-items-center" style="gap:.4rem;">Access token <span id="sm-config-access-token-badge" class="badge badge-secondary">vazio</span></label>
+                                <input type="password" id="sm-config-access-token" class="form-control" placeholder="Novo token" autocomplete="new-password">
+                                <small class="text-muted" id="sm-config-access-token-status"></small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="d-flex align-items-center" style="gap:.4rem;">Refresh token <span id="sm-config-refresh-token-badge" class="badge badge-secondary">vazio</span></label>
+                                <input type="password" id="sm-config-refresh-token" class="form-control" placeholder="Novo refresh token" autocomplete="new-password">
+                                <small class="text-muted" id="sm-config-refresh-token-status"></small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="d-flex align-items-center" style="gap:.4rem;">App Secret (Meta/Instagram) <span id="sm-config-app-secret-badge" class="badge badge-secondary">vazio</span></label>
+                                <input type="password" id="sm-config-app-secret" class="form-control" placeholder="Instagram/Facebook App Secret" autocomplete="new-password">
+                                <small class="text-muted" id="sm-config-app-secret-status"></small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                <button class="btn btn-primary" id="sm-config-save-btn">
+                    <i class="fas fa-save mr-1"></i>Salvar configuração
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script src="/js/supabaseConfig.js"></script>
+<script src="/dist/js/session.js"></script>
+<script src="/dist/js/permissions.js"></script>
+<script src="/dist/js/cache.js"></script>
+<script src="/dist/js/coordinator/carregar-componentes.js"></script>
+<script src="/dist/js/social/social-monitor.js"></script>
+
+<script>
+// ─── OAuth: botões de conexão no modal ────────────────────────────────────────
+const OAUTH_ICONS = {
+    INSTAGRAM: 'fab fa-instagram',
+    FACEBOOK:  'fab fa-facebook',
+    TIKTOK:    'fab fa-tiktok',
+    LINKEDIN:  'fab fa-linkedin'
+};
+const OAUTH_COLORS = {
+    INSTAGRAM: '#e1306c',
+    FACEBOOK:  '#1877f2',
+    TIKTOK:    '#000',
+    LINKEDIN:  '#0077b5'
+};
+const OAUTH_PROVIDERS = {
+    INSTAGRAM: 'meta',
+    FACEBOOK:  'meta',
+    TIKTOK:    'tiktok',
+    LINKEDIN:  'linkedin'
+};
+const OAUTH_LABELS = {
+    INSTAGRAM: 'Conectar com Meta (Instagram)',
+    FACEBOOK:  'Conectar com Meta (Facebook)',
+    TIKTOK:    'Conectar com TikTok',
+    LINKEDIN:  'Conectar com LinkedIn'
+};
+
+let oauthStatus = { meta: false, tiktok: false, linkedin: false };
+
+async function loadOAuthStatus() {
+    try {
+        const r = await fetch('/api/oauth/status');
+        oauthStatus = await r.json();
+    } catch (_) {}
+}
+
+function renderOAuthSection(platform) {
+    const schoolId = sessionStorage.getItem('SCHOOL_ID') || 'wozza-default-school';
+    const provider = OAUTH_PROVIDERS[platform];
+    const icon = OAUTH_ICONS[platform] || 'fas fa-link';
+    const color = OAUTH_COLORS[platform] || '#555';
+    const label = OAUTH_LABELS[platform] || `Conectar ${platform}`;
+    const configured = provider === 'meta' ? oauthStatus.meta
+                     : provider === 'tiktok' ? oauthStatus.tiktok
+                     : oauthStatus.linkedin;
+
+    const oauthUrl = `/auth/${provider}/start?platform=${platform}&school_id=${encodeURIComponent(schoolId)}`;
+
+    if (!configured) {
+        $('#sm-oauth-status-label').text('');
+        $('#sm-oauth-section').html(`
+            <div class="alert alert-warning py-2 mb-0" style="font-size:.85rem;">
+                <i class="fas fa-exclamation-triangle mr-1"></i>
+                OAuth não configurado para ${platform}. Preencha as variáveis de ambiente no <code>.env</code>
+                (${provider === 'meta' ? 'META_APP_ID + META_APP_SECRET' : provider === 'tiktok' ? 'TIKTOK_APP_ID + TIKTOK_APP_SECRET' : 'LINKEDIN_CLIENT_ID + LINKEDIN_CLIENT_SECRET'})
+                e reinicie o servidor.
+            </div>
+        `);
+        return;
+    }
+
+    $('#sm-oauth-status-label').text('');
+    $('#sm-oauth-section').html(`
+        <a href="${oauthUrl}" class="btn btn-block font-weight-bold" style="background:${color};color:#fff;border-radius:8px;padding:12px;">
+            <i class="${icon} mr-2"></i>${label}
+        </a>
+        <div class="small text-muted mt-2">
+            <i class="fas fa-lock mr-1"></i>
+            Você será redirecionado para login seguro. Nenhuma senha é armazenada.
+        </div>
+    `);
+}
+
+// Interceptar abertura do modal para renderizar botão OAuth
+$(document).on('click', '[data-platform]', function() {
+    const platform = $(this).data('platform');
+    if (platform) renderOAuthSection(platform);
+});
+// Sobrescrever a função que abre o modal de configuração
+const _origOpenConfig = window.openConfigModal;
+$(document).ready(async function() {
+    await loadOAuthStatus();
+
+    // Toggle campos manuais
+    $('#sm-creds-toggle').on('click', function() {
+        const hidden = $('#sm-creds-section').is(':hidden');
+        $('#sm-creds-section').toggle(hidden);
+        $(this).text(hidden ? 'Esconder' : 'Mostrar');
+    });
+
+    // Observar abertura do modal para renderizar seção OAuth
+    $('#sm-config-modal').on('shown.bs.modal', function() {
+        const platform = String($('#sm-config-platform').val() || '').toUpperCase();
+        if (platform) renderOAuthSection(platform);
+    });
+
+    // Tratar retorno do OAuth (query params na URL)
+    const params = new URLSearchParams(window.location.search);
+    const oauthOk = params.get('oauth_ok');
+    const oauthError = params.get('oauth_error');
+    const schoolId = params.get('school_id');
+
+    if (oauthOk) {
+        // Limpar query string sem reload
+        history.replaceState({}, '', window.location.pathname);
+        if (schoolId) sessionStorage.setItem('SCHOOL_ID', schoolId);
+        Swal.fire({
+            icon: 'success',
+            title: 'Conectado!',
+            text: `${oauthOk} conectado com sucesso.`,
+            confirmButtonText: 'OK'
+        }).then(() => {
+            if (typeof loadMonitor === 'function') loadMonitor();
+        });
+    } else if (oauthError) {
+        history.replaceState({}, '', window.location.pathname);
+        Swal.fire({
+            icon: 'error',
+            title: 'Erro na autenticação',
+            text: decodeURIComponent(oauthError)
+        });
+    }
+});
+</script>
+</body>
+</html>
