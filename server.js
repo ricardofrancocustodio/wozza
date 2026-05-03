@@ -642,6 +642,77 @@ function metaScopes() {
     return env('META_SCOPES') || DEFAULT_META_SCOPES;
 }
 
+// Instagram Direct Login (sem Facebook Page)
+const INSTAGRAM_DIRECT_SCOPES = 'instagram_business_basic,instagram_business_content_publish';
+
+app.get('/auth/instagram/start', (req, res) => {
+    const schoolId = String(req.query.school_id || 'wozza-default-school');
+    const instagramAppId = env('INSTAGRAM_APP_ID');
+    if (!instagramAppId) {
+        return res.redirect(`/social-monitor?oauth_error=${encodeURIComponent('INSTAGRAM_APP_ID não configurado no .env')}&platform=INSTAGRAM`);
+    }
+    const params = new URLSearchParams({
+        client_id: instagramAppId,
+        redirect_uri: oauthRedirectUri(req, 'instagram'),
+        scope: INSTAGRAM_DIRECT_SCOPES,
+        response_type: 'code',
+        state: oauthState('INSTAGRAM', schoolId)
+    });
+    res.redirect(`https://api.instagram.com/oauth/authorize?${params}`);
+});
+
+app.get('/auth/instagram/callback', async (req, res) => {
+    const { code, state, error, error_description } = req.query;
+    if (error) return res.redirect(`/social-monitor?oauth_error=${encodeURIComponent(error_description || error)}`);
+
+    const { platform, schoolId } = parseOAuthState(state);
+    if (!code || !schoolId) return res.redirect('/social-monitor?oauth_error=Parâmetros inválidos');
+
+    try {
+        const tokenRes = await fetchJson('https://api.instagram.com/oauth/access_token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                client_id: env('INSTAGRAM_APP_ID'),
+                client_secret: env('INSTAGRAM_APP_SECRET'),
+                grant_type: 'authorization_code',
+                redirect_uri: oauthRedirectUri(req, 'instagram'),
+                code
+            })
+        });
+        if (!tokenRes.ok) throw new Error(tokenRes.data?.error_description || 'Falha ao obter token Instagram');
+
+        const accessToken = tokenRes.data.access_token;
+        const userId = tokenRes.data.user_id;
+
+        const userRes = await fetchJson(`https://graph.instagram.com/${userId}?fields=username,name,id&access_token=${accessToken}`);
+        if (!userRes.ok) throw new Error('Não foi possível obter dados do Instagram');
+
+        const savedAt = new Date().toISOString();
+        const credentialsEncrypted = encryptSocialCredentials({
+            provider: 'instagram_direct',
+            access_token: accessToken,
+            user_id: userId,
+            saved_at: savedAt
+        });
+
+        const config = await db.upsertConfig(schoolId, 'INSTAGRAM', {
+            enabled: true,
+            connection_status: 'CONNECTED',
+            account_label: userRes.data.username || userRes.data.name || null,
+            credentials_present: JSON.stringify({ access_token: true, refresh_token: false, app_secret: false }),
+            credentials_encrypted: credentialsEncrypted,
+            metadata: JSON.stringify({ instagram_user_id: userId, username: userRes.data.username, connected_at: savedAt })
+        });
+
+        await db.markFirstSocialConnectedBySchool(schoolId);
+        res.redirect(`/social-monitor?oauth_ok=INSTAGRAM&school_id=${encodeURIComponent(schoolId)}`);
+    } catch (err) {
+        console.error('Instagram OAuth error:', err);
+        res.redirect(`/social-monitor?oauth_error=${encodeURIComponent(err.message)}&platform=INSTAGRAM`);
+    }
+});
+
 app.get('/auth/meta/start', (req, res) => {
     const platform = String(req.query.platform || 'INSTAGRAM').toUpperCase();
     const schoolId = String(req.query.school_id || 'wozza-default-school');
