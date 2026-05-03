@@ -7,6 +7,7 @@ const db = require('./db');
 const app = express();
 const port = process.env.PORT || 4000;
 const APP_URL = (process.env.APP_URL || `http://localhost:${port}`).replace(/\/$/, '');
+let dbInitPromise = null;
 
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: false }));
@@ -20,6 +21,16 @@ app.use('/fontawesome', express.static(path.join(__dirname, 'node_modules/@forta
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 app.use('/js', express.static(path.join(__dirname, 'public/js')));
 app.use('/dist', express.static(path.join(__dirname, 'public/dist')));
+
+app.use(async (_req, res, next) => {
+    if (!process.env.DATABASE_URL) return next();
+    try {
+        await ensureDbReady();
+        return next();
+    } catch (err) {
+        return res.status(503).json({ error: 'Banco de dados indisponível', message: err.message });
+    }
+});
 
 // ─── Business logic ───────────────────────────────────────────────────────────
 
@@ -1118,19 +1129,30 @@ async function initDb() {
             console.log('Schema Neon OK');
         } catch (err) {
             console.warn('Aviso schema Neon:', err.message);
+            throw err;
         }
     } else {
         console.warn('DATABASE_URL não configurado — sem persistência NeonDB');
     }
 }
 
+function ensureDbReady() {
+    if (!dbInitPromise) {
+        dbInitPromise = initDb().catch((err) => {
+            dbInitPromise = null;
+            throw err;
+        });
+    }
+    return dbInitPromise;
+}
+
 if (require.main === module) {
     // Execução local: node server.js
-    initDb().then(() => {
+    ensureDbReady().catch(() => null).then(() => {
         app.listen(port, () => console.log(`Wozza rodando em http://localhost:${port}`));
     });
 } else {
     // Vercel serverless: exporta o app e inicializa o schema uma vez
-    initDb();
+    ensureDbReady().catch(() => null);
     module.exports = app;
 }

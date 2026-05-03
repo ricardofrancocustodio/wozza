@@ -607,6 +607,10 @@ Validacoes planejadas:
 - Teste local do endpoint de status/rotas sem exigir leitura de `.env`.
 - Teste real de OAuth/sync apenas quando as variaveis Meta e `ENCRYPTION_KEY` estiverem configuradas no ambiente.
 
+Observacao pos-deploy:
+
+- Em ambiente Vercel serverless, as rotas dinamicas devem aguardar `ensureSchema()` antes de consultar tabelas com colunas novas. Sem esse guard, uma primeira chamada pode executar antes da migration automatica terminar e retornar erro de coluna inexistente.
+
 ### Fase 1 - Fundacao de billing sem provedor externo
 Objetivo: colocar o fluxo comercial dentro do produto, mesmo sem cobranca automatica.
 
