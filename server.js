@@ -247,7 +247,8 @@ app.get('/api/auth/me', async (req, res) => {
     try {
         const user = await requireCurrentUser(req);
         if (!user) return res.status(401).json({ authenticated: false });
-        return res.json({ authenticated: true, user: db.publicUser(user) });
+        const billing = await db.getUserBillingStatus(user.id);
+        return res.json({ authenticated: true, user: db.publicUser(user), billing });
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
@@ -615,6 +616,66 @@ app.get('/api/oauth/status', (req, res) => {
     });
 });
 
+// ─── API: Billing ─────────────────────────────────────────────────────────────
+
+app.get('/api/billing/plans', async (_req, res) => {
+    try {
+        const plans = await db.getBillingPlans();
+        return res.json({ plans });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/billing/select-plan', async (req, res) => {
+    try {
+        const user = await requireCurrentUser(req);
+        if (!user) return res.status(401).json({ error: 'Não autenticado' });
+        const planCode = String(req.body?.plan_code || '').trim().toLowerCase();
+        const accountName = String(req.body?.account_name || '').trim();
+        if (!planCode) return res.status(400).json({ error: 'plan_code é obrigatório' });
+        const result = await db.selectPlanForUser(user.id, planCode, accountName);
+        return res.json({ ok: true, account_id: result.account_id, plan_code: planCode });
+    } catch (err) {
+        return res.status(400).json({ error: err.message });
+    }
+});
+
+app.get('/api/billing/status', async (req, res) => {
+    try {
+        const user = await requireCurrentUser(req);
+        if (!user) return res.status(401).json({ error: 'Não autenticado' });
+        const billing = await db.getUserBillingStatus(user.id);
+        return res.json(billing);
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── API: Onboarding ──────────────────────────────────────────────────────────
+
+app.get('/api/onboarding/status', async (req, res) => {
+    try {
+        const user = await requireCurrentUser(req);
+        if (!user) return res.status(401).json({ error: 'Não autenticado' });
+        const steps = await db.getOnboardingStatus(user.id);
+        return res.json({ steps: steps || {} });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/onboarding/dismiss-connect-social', async (req, res) => {
+    try {
+        const user = await requireCurrentUser(req);
+        if (!user) return res.status(401).json({ error: 'Não autenticado' });
+        await db.dismissConnectSocial(user.id);
+        return res.json({ ok: true });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── Páginas ──────────────────────────────────────────────────────────────────
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
@@ -624,6 +685,9 @@ app.get('/forgot-password', (req, res) => res.sendFile(path.join(__dirname, 'for
 app.get('/reset-password', (req, res) => res.sendFile(path.join(__dirname, 'reset-password.html')));
 app.get('/first-password', (req, res) => res.sendFile(path.join(__dirname, 'first-password.html')));
 app.get('/social-monitor', (req, res) => res.sendFile(path.join(__dirname, 'social-monitor.html')));
+app.get('/plans',    (req, res) => res.sendFile(path.join(__dirname, 'plans.html')));
+app.get('/onboarding', (req, res) => res.sendFile(path.join(__dirname, 'onboarding.html')));
+app.get('/billing',  (req, res) => res.sendFile(path.join(__dirname, 'billing.html')));
 
 // ─── API: Monitor Social ──────────────────────────────────────────────────────
 

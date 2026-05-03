@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wozza | Escolher Plano</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/fontawesome/css/all.min.css">
+    <style>
+        body { background: #f4f6f9; min-height: 100vh; display: flex; flex-direction: column; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+        .plans-header { background: #343a40; padding: 1rem 0; }
+        .brand-text { font-size: 1.4rem; font-weight: 700; color: #fff; letter-spacing: -.5px; }
+        .plan-card { border-radius: 14px; border: 2px solid #e9ecef; transition: transform .2s, box-shadow .2s; }
+        .plan-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(0,0,0,.12); }
+        .plan-card.featured { border-color: #764ba2; }
+        .featured-badge { background: linear-gradient(135deg,#667eea,#764ba2); color: #fff; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; border-radius: 12px 12px 0 0; }
+        .price-big { font-size: 2.8rem; font-weight: 800; color: #2c3e50; line-height: 1; }
+        .price-cycle { font-size: .85rem; color: #6c757d; }
+        .price-annual-note { font-size: .8rem; color: #6c757d; }
+        .feature-list li { padding: 5px 0; font-size: .9rem; }
+        .btn-plan { border-radius: 30px; padding: 11px 28px; font-weight: 600; font-size: 1rem; }
+        .security-note { font-size: .82rem; color: #6c757d; }
+        footer a { color: #6c757d; }
+        footer a:hover { color: #343a40; }
+    </style>
+</head>
+<body data-auth="required">
+
+<header class="plans-header">
+    <div class="container d-flex align-items-center justify-content-between">
+        <span class="brand-text">Wozza</span>
+        <small class="text-muted"></small>
+    </div>
+</header>
+
+<main class="container py-5 flex-grow-1">
+    <div class="text-center mb-5">
+        <h1 class="font-weight-bold h2 mb-2">Escolha o seu plano</h1>
+        <p class="text-muted mb-0" style="font-size:1.05rem;">
+            Teste o Wozza por 7 dias com os principais recursos liberados.<br>
+            Continue somente se fizer sentido para sua operação.
+        </p>
+    </div>
+
+    <div class="row justify-content-center mb-4">
+        <div class="col-md-5">
+            <div class="form-group mb-0">
+                <label for="account_name" class="font-weight-600">Nome da sua empresa ou escola</label>
+                <input type="text" class="form-control form-control-lg" id="account_name"
+                    placeholder="Ex: Escola Exemplo (opcional)">
+            </div>
+        </div>
+    </div>
+
+    <div class="row justify-content-center" id="plans-container">
+        <div class="col-12 text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Carregando...</span>
+            </div>
+        </div>
+    </div>
+
+    <p class="text-center security-note mt-3">
+        <i class="fas fa-lock mr-1"></i>
+        Você pode cancelar antes da cobrança.
+        Durante o teste, conecte suas redes sociais e experimente o fluxo completo.
+    </p>
+</main>
+
+<footer class="text-center py-3 small border-top bg-white">
+    <a href="/privacy-policy" class="mr-3">Política de Privacidade</a>
+    <a href="/terms-of-service">Termos de Uso</a>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/dist/js/session.js"></script>
+<script>
+(async function () {
+    // Load plans independently (public endpoint)
+    let plans = [];
+    try {
+        const res = await fetch('/api/billing/plans');
+        const data = await res.json();
+        plans = data.plans || [];
+    } catch (e) {
+        document.getElementById('plans-container').innerHTML =
+            '<div class="col-12 text-center text-danger">Erro ao carregar planos. Recarregue a página.</div>';
+        return;
+    }
+
+    if (!plans.length) {
+        document.getElementById('plans-container').innerHTML =
+            '<div class="col-12 text-center text-muted">Nenhum plano disponível no momento.</div>';
+        return;
+    }
+
+    function fmtBRL(cents) {
+        return (cents / 100).toFixed(2).replace('.', ',');
+    }
+
+    const container = document.getElementById('plans-container');
+    container.innerHTML = plans.map(plan => {
+        const featured = plan.billing_cycle === 'annual';
+        const priceMain = featured
+            ? `R$ ${fmtBRL(Math.round(plan.price_cents / 12))}`
+            : `R$ ${fmtBRL(plan.price_cents)}`;
+        const cycleLabel = '/mês';
+        const annualNote = featured
+            ? `<div class="price-annual-note mt-1">R$ ${fmtBRL(plan.price_cents)} cobrado anualmente</div>` : '';
+
+        return `
+        <div class="col-md-4 mb-4">
+            <div class="card plan-card ${featured ? 'featured' : ''} h-100">
+                ${featured ? '<div class="card-header featured-badge text-center py-2">Melhor custo-benefício</div>' : ''}
+                <div class="card-body text-center d-flex flex-column p-4">
+                    <h4 class="font-weight-bold mb-3">${plan.name}</h4>
+                    <div class="price-big">${priceMain}</div>
+                    <div class="price-cycle">${cycleLabel}</div>
+                    ${annualNote}
+                    <ul class="feature-list list-unstyled text-left my-4">
+                        <li><i class="fas fa-check text-success mr-2"></i>Monitor Social (Instagram, Facebook, TikTok, LinkedIn)</li>
+                        <li><i class="fas fa-check text-success mr-2"></i>Publicação multirrede</li>
+                        <li><i class="fas fa-check text-success mr-2"></i>Respostas automáticas</li>
+                        <li><i class="fas fa-check text-success mr-2"></i>Alertas para mensagens sensíveis</li>
+                        <li><i class="fas fa-gift text-primary mr-2"></i>${plan.trial_days} dias de teste grátis</li>
+                    </ul>
+                    <button class="btn ${featured ? 'btn-primary' : 'btn-outline-primary'} btn-plan mt-auto js-select-plan"
+                        data-plan="${plan.code}" data-trial="${plan.trial_days}">
+                        Começar teste de ${plan.trial_days} dias
+                    </button>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+
+    document.querySelectorAll('.js-select-plan').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const planCode    = btn.dataset.plan;
+            const accountName = document.getElementById('account_name').value.trim();
+
+            document.querySelectorAll('.js-select-plan').forEach(b => b.disabled = true);
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1" role="status"></span> Ativando...';
+
+            try {
+                const res = await fetch('/api/billing/select-plan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ plan_code: planCode, account_name: accountName })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Erro ao selecionar plano');
+                window.location.href = '/onboarding';
+            } catch (err) {
+                document.querySelectorAll('.js-select-plan').forEach(b => b.disabled = false);
+                btn.innerHTML = `Começar teste de ${btn.dataset.trial} dias`;
+                alert('Erro: ' + err.message);
+            }
+        });
+    });
+}());
+</script>
+</body>
+</html>

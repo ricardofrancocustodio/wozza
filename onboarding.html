@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wozza | Bem-vindo!</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/fontawesome/css/all.min.css">
+    <style>
+        body { background: #f4f6f9; min-height: 100vh; display: flex; flex-direction: column; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+        .plans-header { background: #343a40; padding: 1rem 0; }
+        .brand-text { font-size: 1.4rem; font-weight: 700; color: #fff; }
+        .step-icon { width: 64px; height: 64px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 1rem; }
+        .card-step { border-radius: 14px; border: 2px solid #e9ecef; }
+        .card-step.highlight { border-color: #667eea; }
+        .btn-step { border-radius: 30px; padding: 11px 28px; font-weight: 600; }
+    </style>
+</head>
+<body data-auth="required">
+
+<header class="plans-header">
+    <div class="container">
+        <span class="brand-text">Wozza</span>
+    </div>
+</header>
+
+<main class="container py-5 flex-grow-1">
+    <div class="text-center mb-5">
+        <div class="step-icon bg-success text-white mx-auto">🎉</div>
+        <h1 class="font-weight-bold h2 mb-2">Seu teste está ativo!</h1>
+        <p class="text-muted" id="trial-msg">Você tem 7 dias para explorar todos os recursos do Wozza.</p>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-5 mb-4">
+            <div class="card card-step highlight h-100">
+                <div class="card-body text-center p-4">
+                    <div class="step-icon bg-primary text-white mx-auto" style="font-size:1.4rem;">
+                        <i class="fab fa-instagram"></i>
+                    </div>
+                    <h5 class="font-weight-bold">Conectar rede social</h5>
+                    <p class="text-muted mb-4">Autorize o Wozza a monitorar mensagens e comentários do seu Instagram, Facebook, TikTok ou LinkedIn.</p>
+                    <a href="/social-monitor" class="btn btn-primary btn-step">
+                        <i class="fas fa-link mr-1"></i>Conectar agora
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-5 mb-4">
+            <div class="card card-step h-100">
+                <div class="card-body text-center p-4">
+                    <div class="step-icon bg-light text-secondary mx-auto" style="font-size:1.4rem;">
+                        <i class="fas fa-tachometer-alt"></i>
+                    </div>
+                    <h5 class="font-weight-bold">Ir para o Dashboard</h5>
+                    <p class="text-muted mb-4">Explore o painel, veja as métricas e configure o Monitor Social depois.</p>
+                    <button id="btn-skip" class="btn btn-outline-secondary btn-step">
+                        Configurar depois
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<footer class="text-center py-3 small border-top bg-white">
+    <a href="/privacy-policy" class="text-muted mr-3">Política de Privacidade</a>
+    <a href="/terms-of-service" class="text-muted">Termos de Uso</a>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/dist/js/session.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    // Update trial message with actual days if available
+    const status = sessionStorage.getItem('BILLING_STATUS');
+    const days   = sessionStorage.getItem('TRIAL_DAYS_LEFT');
+    if (days) {
+        document.getElementById('trial-msg').textContent =
+            `Você tem ${days} dia${days !== '1' ? 's' : ''} para explorar todos os recursos do Wozza.`;
+    }
+
+    document.getElementById('btn-skip').addEventListener('click', async () => {
+        await fetch('/api/onboarding/dismiss-connect-social', { method: 'POST', credentials: 'same-origin' }).catch(() => null);
+        window.location.href = '/dashboard';
+    });
+});
+</script>
+</body>
+</html>
