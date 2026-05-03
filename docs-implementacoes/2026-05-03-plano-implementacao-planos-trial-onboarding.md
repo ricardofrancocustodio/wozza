@@ -611,6 +611,7 @@ Observacao pos-deploy:
 
 - Em ambiente Vercel serverless, as rotas dinamicas devem aguardar `ensureSchema()` antes de consultar tabelas com colunas novas. Sem esse guard, uma primeira chamada pode executar antes da migration automatica terminar e retornar erro de coluna inexistente.
 - As variaveis OAuth devem ser sanitizadas com `trim()` antes de montar URLs e trocar tokens. Isso evita erros como `Invalid App ID` na Meta quando `META_APP_ID` ou outro segredo e salvo com quebra de linha/espaco acidental no ambiente.
+- Em producao, se `APP_URL` estiver configurado por engano como `localhost`, o backend deve usar o host real da requisicao para montar `redirect_uri`. Isso evita enviar `http://localhost:4000/auth/meta/callback` para a Meta em fluxos iniciados por `https://wozza.vercel.app`.
 
 ### Fase 1 - Fundacao de billing sem provedor externo
 Objetivo: colocar o fluxo comercial dentro do produto, mesmo sem cobranca automatica.

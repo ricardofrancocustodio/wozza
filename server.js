@@ -6,7 +6,6 @@ const db = require('./db');
 
 const app = express();
 const port = process.env.PORT || 4000;
-const APP_URL = (process.env.APP_URL || `http://localhost:${port}`).replace(/\/$/, '');
 let dbInitPromise = null;
 
 function env(name) {
@@ -126,8 +125,18 @@ function publicAlertView(a) {
 
 // ─── OAuth helpers ────────────────────────────────────────────────────────────
 
-function oauthRedirectUri(provider) {
-    return `${APP_URL}/auth/${provider}/callback`;
+function baseUrlFromRequest(req) {
+    const configured = env('APP_URL').replace(/\/$/, '');
+    const host = req.get('x-forwarded-host') || req.get('host');
+    const proto = req.get('x-forwarded-proto') || req.protocol || 'http';
+    const requestUrl = `${proto}://${host}`.replace(/\/$/, '');
+    const configuredIsLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configured);
+    if (configured && !(process.env.NODE_ENV === 'production' && configuredIsLocal)) return configured;
+    return requestUrl;
+}
+
+function oauthRedirectUri(req, provider) {
+    return `${baseUrlFromRequest(req)}/auth/${provider}/callback`;
 }
 
 function oauthState(platform, schoolId) {
@@ -147,7 +156,7 @@ async function fetchJson(url, opts = {}) {
 }
 
 function socialEncryptionKey() {
-    const value = process.env.ENCRYPTION_KEY;
+    const value = env('ENCRYPTION_KEY');
     if (!value) throw new Error('ENCRYPTION_KEY não configurado para salvar credenciais sociais');
     return crypto.createHash('sha256').update(value).digest();
 }
@@ -342,9 +351,7 @@ function clearSessionCookie(res) {
 }
 
 function authBaseUrl(req) {
-    const host = req.get('x-forwarded-host') || req.get('host');
-    const proto = req.get('x-forwarded-proto') || req.protocol || 'http';
-    return (process.env.APP_URL || `${proto}://${host}`).replace(/\/$/, '');
+    return baseUrlFromRequest(req);
 }
 
 async function requireCurrentUser(req) {
@@ -638,7 +645,7 @@ app.get('/auth/meta/start', (req, res) => {
     }
     const params = new URLSearchParams({
         client_id: metaAppId,
-        redirect_uri: oauthRedirectUri('meta'),
+        redirect_uri: oauthRedirectUri(req, 'meta'),
         scope: META_SCOPES,
         response_type: 'code',
         state: oauthState(platform, schoolId)
@@ -657,7 +664,7 @@ app.get('/auth/meta/callback', async (req, res) => {
         const tokenRes = await fetchJson('https://graph.facebook.com/v19.0/oauth/access_token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ client_id: env('META_APP_ID'), client_secret: env('META_APP_SECRET'), redirect_uri: oauthRedirectUri('meta'), code })
+            body: new URLSearchParams({ client_id: env('META_APP_ID'), client_secret: env('META_APP_SECRET'), redirect_uri: oauthRedirectUri(req, 'meta'), code })
         });
         if (!tokenRes.ok) throw new Error(tokenRes.data?.error?.message || 'Falha ao obter token');
         const shortToken = tokenRes.data.access_token;
@@ -714,7 +721,7 @@ app.get('/auth/tiktok/start', (req, res) => {
     const params = new URLSearchParams({
         app_id: tiktokAppId,
         state: oauthState('TIKTOK', schoolId),
-        redirect_uri: oauthRedirectUri('tiktok'),
+        redirect_uri: oauthRedirectUri(req, 'tiktok'),
         scope: 'user.info.basic,video.list,comment.list,comment.list.manage'
     });
     res.redirect(`https://www.tiktok.com/v2/auth/authorize/?${params}`);
@@ -728,7 +735,7 @@ app.get('/auth/tiktok/callback', async (req, res) => {
         const tokenRes = await fetchJson('https://open.tiktokapis.com/v2/oauth/token/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ client_key: env('TIKTOK_APP_ID'), client_secret: env('TIKTOK_APP_SECRET'), code, grant_type: 'authorization_code', redirect_uri: oauthRedirectUri('tiktok') })
+            body: new URLSearchParams({ client_key: env('TIKTOK_APP_ID'), client_secret: env('TIKTOK_APP_SECRET'), code, grant_type: 'authorization_code', redirect_uri: oauthRedirectUri(req, 'tiktok') })
         });
         if (!tokenRes.ok) throw new Error(tokenRes.data?.error?.message || 'Falha ao obter token TikTok');
         const { open_id } = tokenRes.data;
@@ -756,7 +763,7 @@ app.get('/auth/linkedin/start', (req, res) => {
     const params = new URLSearchParams({
         response_type: 'code',
         client_id: linkedInClientId,
-        redirect_uri: oauthRedirectUri('linkedin'),
+        redirect_uri: oauthRedirectUri(req, 'linkedin'),
         state: oauthState('LINKEDIN', schoolId),
         scope: 'r_organization_admin w_organization_social r_organization_social'
     });
@@ -771,7 +778,7 @@ app.get('/auth/linkedin/callback', async (req, res) => {
         const tokenRes = await fetchJson('https://www.linkedin.com/oauth/v2/accessToken', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: oauthRedirectUri('linkedin'), client_id: env('LINKEDIN_CLIENT_ID'), client_secret: env('LINKEDIN_CLIENT_SECRET') })
+            body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: oauthRedirectUri(req, 'linkedin'), client_id: env('LINKEDIN_CLIENT_ID'), client_secret: env('LINKEDIN_CLIENT_SECRET') })
         });
         if (!tokenRes.ok) throw new Error(tokenRes.data?.error_description || 'Falha ao obter token LinkedIn');
         const { access_token } = tokenRes.data;
