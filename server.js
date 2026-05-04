@@ -896,13 +896,15 @@ app.get('/api/debug/config', async (req, res) => {
         const platform = String(req.query.platform || 'INSTAGRAM').toUpperCase();
         const config = await db.getConfig(schoolId, platform);
         if (!config) return res.json({ error: 'Configuração não encontrada' });
+        const metadata = typeof config.metadata === 'string' ? JSON.parse(config.metadata) : config.metadata;
+        const credsPres = typeof config.credentials_present === 'string' ? JSON.parse(config.credentials_present) : config.credentials_present;
         return res.json({
             id: config.id,
             platform: config.platform,
             connection_status: config.connection_status,
             account_label: config.account_label,
-            metadata: config.metadata ? JSON.parse(config.metadata) : null,
-            credentials_present: config.credentials_present ? JSON.parse(config.credentials_present) : null
+            metadata: metadata || null,
+            credentials_present: credsPres || null
         });
     } catch (err) {
         return res.status(500).json({ error: err.message });
