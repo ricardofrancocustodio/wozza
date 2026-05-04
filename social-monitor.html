@@ -946,7 +946,7 @@ function renderOAuthSection(platform) {
                     Swal.fire('Cancelado', 'Login foi cancelado.', 'warning');
                 }
             }, {
-                scope: 'public_profile,email,instagram_basic,instagram_manage_comments,pages_show_list,business_management',
+                scope: 'instagram_basic,instagram_manage_comments,pages_show_list,business_management',
                 auth_type: 'reauthenticate'
             });
         });
