@@ -171,7 +171,7 @@ function renderConnectors(configs = []) {
         if (cfg.has_credentials?.access_token) tokenFlags.push('access token salvo');
         if (cfg.has_credentials?.refresh_token) tokenFlags.push('refresh token salvo');
         const html = `
-            <div class="col-md-12 mb-3">
+            <div class="col-md-6 col-xl-4 mb-3">
                 <div class="connector-card p-3">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <div>
@@ -194,6 +194,27 @@ function renderConnectors(configs = []) {
         `;
         container.append(html);
     });
+}
+
+function toggleConfigFieldsByPlatform(platform) {
+    const current = String(platform || '').toUpperCase();
+    $('[data-platforms]').each(function() {
+        const accepted = String($(this).data('platforms') || '')
+            .split(',')
+            .map((item) => item.trim().toUpperCase())
+            .filter(Boolean);
+        const visible = !accepted.length || accepted.includes(current);
+        $(this).prop('hidden', !visible);
+    });
+
+    const badge = $('#sm-config-platform-badge');
+    const iconMap = {
+        INSTAGRAM: 'fab fa-instagram',
+        FACEBOOK: 'fab fa-facebook',
+        TIKTOK: 'fab fa-tiktok',
+        LINKEDIN: 'fab fa-linkedin'
+    };
+    badge.html(`<i class="${iconMap[current] || 'fas fa-link'}"></i><span>${escapeHtml(platformLabel(current))}</span>`);
 }
 
 function renderAlerts(alerts = []) {
@@ -880,6 +901,7 @@ window.openConfigModal = function openConfigModal(platform) {
     const refs = cfg.references || {};
     const allowedChannels = Array.isArray(cfg.allowed_channels) ? cfg.allowed_channels : ['DIRECT', 'POST_COMMENT'];
     const platformUpper = String(platform || '').toUpperCase();
+    toggleConfigFieldsByPlatform(platformUpper);
 
     $('#sm-config-modal-title').text(`Configurar ${platformLabel(platform)}`);
     $('#sm-config-platform').val(platform || '');

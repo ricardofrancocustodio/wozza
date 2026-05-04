@@ -57,6 +57,11 @@ Sempre que houver implementacao ou alteracao de codigo, avaliar se e necessario 
 5. Fazer deploy do backend, se houver alvo configurado e alteracao de backend.
 6. Subir o codigo para o repositorio remoto, quando a alteracao estiver validada.
 
+Regra operacional adicional:
+
+- A cada implementacao ou atualizacao, o agente deve avaliar o que mudou e, se necessario para teste e validacao, executar tambem o deploy e o push do codigo ja validado, alem de atualizar a documentacao correspondente.
+- Quando a alteracao impactar comportamento que precisa ser testado em ambiente publicado, priorizar push + deploy da mudanca validada no mesmo fluxo de entrega.
+
 **Instrucao obrigatoria:**
 
 Antes de executar deploy, migrations ou `git push`, informe ao usuario o que sera feito e por que, e aguarde confirmacao explicita.

@@ -34,6 +34,45 @@
             background: #fff;
             height: 100%;
         }
+        .sm-config-section {
+            border: 1px solid #e3e8ee;
+            border-radius: 14px;
+            background: #fbfcfe;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .sm-config-section-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .sm-config-section-title h6 {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 700;
+            color: #203a43;
+        }
+        .sm-config-section-note {
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 12px;
+        }
+        .sm-platform-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: #eef3f7;
+            color: #2c5364;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .sm-platform-field[hidden] {
+            display: none !important;
+        }
         .flow-step {
             width: 34px;
             height: 34px;
@@ -196,6 +235,9 @@
                         <a class="nav-link" id="tab-monitor-link" data-toggle="tab" href="#tab-monitor" role="tab"><i class="fas fa-shield-alt mr-2"></i>Monitoramento</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" id="tab-canais-link" data-toggle="tab" href="#tab-canais" role="tab"><i class="fas fa-link mr-2"></i>Canais</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" id="tab-publicar-link" data-toggle="tab" href="#tab-publicar" role="tab"><i class="fas fa-paper-plane mr-2"></i>Criar postagem</a>
                     </li>
                 </ul>
@@ -342,19 +384,6 @@
 
                 <div class="row">
                     <div class="col-12">
-                        <div class="card card-outline card-primary">
-                            <div class="card-header">
-                                <h3 class="card-title">Canais conectados</h3>
-                            </div>
-                            <div class="card-body">
-                                <div class="row" id="sm-connectors-list"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-12">
                         <div class="card card-outline card-secondary">
                             <div class="card-header d-flex justify-content-between align-items-center">
                                 <h3 class="card-title mb-0"><i class="fas fa-robot mr-2 text-secondary"></i>Respostas automáticas</h3>
@@ -476,6 +505,22 @@
                     </div>
                 </div>
                 </div><!-- /tab-monitor -->
+
+                <div class="tab-pane fade" id="tab-canais" role="tabpanel">
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card card-outline card-primary">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h3 class="card-title mb-0"><i class="fas fa-link mr-2"></i>Canais conectados</h3>
+                                    <span class="small text-muted">Conecte e configure cada rede separadamente</span>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row" id="sm-connectors-list"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div><!-- /tab-canais -->
 
                 <div class="tab-pane fade" id="tab-publicar" role="tabpanel">
                     <div class="row">
@@ -603,164 +648,174 @@
                     <div class="small text-muted mt-2" id="sm-config-summary-hint">Preencha os campos abaixo. Credenciais sens&iacute;veis ficam marcadas como <strong>SALVO</strong> quando guardadas; elas n&atilde;o s&atilde;o reexibidas por seguran&ccedil;a.</div>
                 </div>
 
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label>Conta exibida</label>
-                            <input type="text" id="sm-config-account-label" class="form-control" placeholder="Ex.: @escola_oficial">
-                        </div>
+                <div class="sm-config-section">
+                    <div class="sm-config-section-title">
+                        <h6><i class="fas fa-sliders-h mr-2"></i>Configurações gerais</h6>
+                        <span class="sm-platform-badge" id="sm-config-platform-badge"><i class="fas fa-link"></i><span>Canal</span></span>
                     </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label>Status da conexão</label>
-                            <select id="sm-config-connection-status" class="form-control">
-                                <option value="PENDING">Pendente</option>
-                                <option value="CONNECTED">Conectado</option>
-                                <option value="ERROR">Erro</option>
-                                <option value="DISABLED">Desativado</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-4">
-                        <div class="custom-control custom-switch mt-2">
-                            <input type="checkbox" class="custom-control-input" id="sm-config-enabled">
-                            <label class="custom-control-label" for="sm-config-enabled">Canal ativo</label>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="custom-control custom-switch mt-2">
-                            <input type="checkbox" class="custom-control-input" id="sm-config-auto-reply" checked>
-                            <label class="custom-control-label" for="sm-config-auto-reply">Auto resposta ativa</label>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="custom-control custom-switch mt-2">
-                            <input type="checkbox" class="custom-control-input" id="sm-config-notify-director" checked>
-                            <label class="custom-control-label" for="sm-config-notify-director">Notificar diretoria</label>
-                        </div>
-                    </div>
-                </div>
-
-                <hr>
-
-                <div class="mb-2 font-weight-bold">Canais monitorados</div>
-                <div class="row">
-                    <div class="col-md-3">
-                        <div class="custom-control custom-checkbox">
-                            <input type="checkbox" class="custom-control-input sm-config-channel" id="sm-channel-direct" value="DIRECT">
-                            <label class="custom-control-label" for="sm-channel-direct">Direct</label>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="custom-control custom-checkbox">
-                            <input type="checkbox" class="custom-control-input sm-config-channel" id="sm-channel-post" value="POST_COMMENT">
-                            <label class="custom-control-label" for="sm-channel-post">Comentário post</label>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="custom-control custom-checkbox">
-                            <input type="checkbox" class="custom-control-input sm-config-channel" id="sm-channel-reel" value="REEL_COMMENT">
-                            <label class="custom-control-label" for="sm-channel-reel">Comentário vídeo</label>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="custom-control custom-checkbox">
-                            <input type="checkbox" class="custom-control-input sm-config-channel" id="sm-channel-story" value="STORY_MENTION">
-                            <label class="custom-control-label" for="sm-channel-story">Menção/story</label>
-                        </div>
-                    </div>
-                </div>
-
-                <hr>
-
-                <div class="mb-2 font-weight-bold">Referências da integração</div>
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label>App ID</label>
-                            <input type="text" id="sm-config-app-id" class="form-control" placeholder="Opcional">
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label>Page ID</label>
-                            <input type="text" id="sm-config-page-id" class="form-control" placeholder="Opcional">
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label>Instagram Business ID</label>
-                            <input type="text" id="sm-config-instagram-business-id" class="form-control" placeholder="Opcional">
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label>TikTok Account ID</label>
-                            <input type="text" id="sm-config-tiktok-account-id" class="form-control" placeholder="Opcional">
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label>LinkedIn Organization ID</label>
-                            <input type="text" id="sm-config-linkedin-org-id" class="form-control" placeholder="Opcional">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group mb-0">
-                            <label>Verify token do webhook</label>
-                            <input type="text" id="sm-config-verify-token" class="form-control" placeholder="Token usado na verificação do webhook">
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group mb-0">
-                            <label>Webhook path sugerido</label>
-                            <input type="text" id="sm-config-webhook-path" class="form-control" placeholder="/webhook/social/meta?school_id=...">
-                        </div>
-                    </div>
-                </div>
-
-                <hr>
-
-                <!-- OAuth: conexão com 1 clique -->
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="font-weight-bold">Autenticação</span>
-                    <span class="small text-muted" id="sm-oauth-status-label"></span>
-                </div>
-                <div id="sm-oauth-section" class="mb-3">
-                    <!-- preenchido via JS de acordo com a plataforma -->
-                </div>
-
-                <div class="d-flex justify-content-between align-items-center mb-2" style="margin-top:1rem;">
-                    <span class="font-weight-bold text-muted small">Token manual (avançado)</span>
-                    <button type="button" class="btn btn-link btn-sm p-0" id="sm-creds-toggle" style="font-size:.8rem;">Mostrar</button>
-                </div>
-                <div id="sm-creds-section" style="display:none;">
+                    <div class="sm-config-section-note">Defina o estado do canal, como ele aparece no painel e quais tipos de interação serão monitorados.</div>
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label class="d-flex align-items-center" style="gap:.4rem;">Access token <span id="sm-config-access-token-badge" class="badge badge-secondary">vazio</span></label>
-                                <input type="password" id="sm-config-access-token" class="form-control" placeholder="Novo token" autocomplete="new-password">
-                                <small class="text-muted" id="sm-config-access-token-status"></small>
+                                <label>Conta exibida</label>
+                                <input type="text" id="sm-config-account-label" class="form-control" placeholder="Ex.: @escola_oficial">
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label class="d-flex align-items-center" style="gap:.4rem;">Refresh token <span id="sm-config-refresh-token-badge" class="badge badge-secondary">vazio</span></label>
-                                <input type="password" id="sm-config-refresh-token" class="form-control" placeholder="Novo refresh token" autocomplete="new-password">
-                                <small class="text-muted" id="sm-config-refresh-token-status"></small>
+                                <label>Status da conexão</label>
+                                <select id="sm-config-connection-status" class="form-control">
+                                    <option value="PENDING">Pendente</option>
+                                    <option value="CONNECTED">Conectado</option>
+                                    <option value="ERROR">Erro</option>
+                                    <option value="DISABLED">Desativado</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="custom-control custom-switch mt-2">
+                                <input type="checkbox" class="custom-control-input" id="sm-config-enabled">
+                                <label class="custom-control-label" for="sm-config-enabled">Canal ativo</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="custom-control custom-switch mt-2">
+                                <input type="checkbox" class="custom-control-input" id="sm-config-auto-reply" checked>
+                                <label class="custom-control-label" for="sm-config-auto-reply">Auto resposta ativa</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="custom-control custom-switch mt-2">
+                                <input type="checkbox" class="custom-control-input" id="sm-config-notify-director" checked>
+                                <label class="custom-control-label" for="sm-config-notify-director">Notificar diretoria</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 mb-2 font-weight-bold">Canais monitorados</div>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input sm-config-channel" id="sm-channel-direct" value="DIRECT">
+                                <label class="custom-control-label" for="sm-channel-direct">Direct</label>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input sm-config-channel" id="sm-channel-post" value="POST_COMMENT">
+                                <label class="custom-control-label" for="sm-channel-post">Comentário post</label>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input sm-config-channel" id="sm-channel-reel" value="REEL_COMMENT">
+                                <label class="custom-control-label" for="sm-channel-reel">Comentário vídeo</label>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input sm-config-channel" id="sm-channel-story" value="STORY_MENTION">
+                                <label class="custom-control-label" for="sm-channel-story">Menção/story</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sm-config-section">
+                    <div class="sm-config-section-title">
+                        <h6><i class="fas fa-network-wired mr-2"></i>Referências da rede</h6>
+                    </div>
+                    <div class="sm-config-section-note">Os campos abaixo aparecem de acordo com a rede selecionada para evitar mistura de IDs e referências.</div>
+                    <div class="row">
+                        <div class="col-md-6 sm-platform-field" data-platforms="INSTAGRAM,FACEBOOK">
+                            <div class="form-group">
+                                <label>App ID</label>
+                                <input type="text" id="sm-config-app-id" class="form-control" placeholder="Opcional">
+                            </div>
+                        </div>
+                        <div class="col-md-6 sm-platform-field" data-platforms="INSTAGRAM,FACEBOOK">
+                            <div class="form-group">
+                                <label>Page ID</label>
+                                <input type="text" id="sm-config-page-id" class="form-control" placeholder="Opcional">
+                            </div>
+                        </div>
+                        <div class="col-md-6 sm-platform-field" data-platforms="INSTAGRAM">
+                            <div class="form-group">
+                                <label>Instagram Business ID</label>
+                                <input type="text" id="sm-config-instagram-business-id" class="form-control" placeholder="Opcional">
+                            </div>
+                        </div>
+                        <div class="col-md-6 sm-platform-field" data-platforms="TIKTOK">
+                            <div class="form-group">
+                                <label>TikTok Account ID</label>
+                                <input type="text" id="sm-config-tiktok-account-id" class="form-control" placeholder="Opcional">
+                            </div>
+                        </div>
+                        <div class="col-md-6 sm-platform-field" data-platforms="LINKEDIN">
+                            <div class="form-group">
+                                <label>LinkedIn Organization ID</label>
+                                <input type="text" id="sm-config-linkedin-org-id" class="form-control" placeholder="Opcional">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sm-config-section">
+                    <div class="sm-config-section-title">
+                        <h6><i class="fas fa-broadcast-tower mr-2"></i>Webhook e autenticação</h6>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group mb-0">
+                                <label>Verify token do webhook</label>
+                                <input type="text" id="sm-config-verify-token" class="form-control" placeholder="Token usado na verificação do webhook">
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <div class="form-group">
-                                <label class="d-flex align-items-center" style="gap:.4rem;">App Secret (Meta/Instagram) <span id="sm-config-app-secret-badge" class="badge badge-secondary">vazio</span></label>
-                                <input type="password" id="sm-config-app-secret" class="form-control" placeholder="Instagram/Facebook App Secret" autocomplete="new-password">
-                                <small class="text-muted" id="sm-config-app-secret-status"></small>
+                            <div class="form-group mb-0">
+                                <label>Webhook path sugerido</label>
+                                <input type="text" id="sm-config-webhook-path" class="form-control" placeholder="/webhook/social/meta?school_id=...">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-2 mt-3">
+                        <span class="font-weight-bold">Autenticação</span>
+                        <span class="small text-muted" id="sm-oauth-status-label"></span>
+                    </div>
+                    <div id="sm-oauth-section" class="mb-3">
+                        <!-- preenchido via JS de acordo com a plataforma -->
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-2" style="margin-top:1rem;">
+                        <span class="font-weight-bold text-muted small">Token manual (avançado)</span>
+                        <button type="button" class="btn btn-link btn-sm p-0" id="sm-creds-toggle" style="font-size:.8rem;">Mostrar</button>
+                    </div>
+                    <div id="sm-creds-section" style="display:none;">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="d-flex align-items-center" style="gap:.4rem;">Access token <span id="sm-config-access-token-badge" class="badge badge-secondary">vazio</span></label>
+                                    <input type="password" id="sm-config-access-token" class="form-control" placeholder="Novo token" autocomplete="new-password">
+                                    <small class="text-muted" id="sm-config-access-token-status"></small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="d-flex align-items-center" style="gap:.4rem;">Refresh token <span id="sm-config-refresh-token-badge" class="badge badge-secondary">vazio</span></label>
+                                    <input type="password" id="sm-config-refresh-token" class="form-control" placeholder="Novo refresh token" autocomplete="new-password">
+                                    <small class="text-muted" id="sm-config-refresh-token-status"></small>
+                                </div>
+                            </div>
+                            <div class="col-md-6 sm-platform-field" data-platforms="INSTAGRAM,FACEBOOK">
+                                <div class="form-group">
+                                    <label class="d-flex align-items-center" style="gap:.4rem;">App Secret (Meta/Instagram) <span id="sm-config-app-secret-badge" class="badge badge-secondary">vazio</span></label>
+                                    <input type="password" id="sm-config-app-secret" class="form-control" placeholder="Instagram/Facebook App Secret" autocomplete="new-password">
+                                    <small class="text-muted" id="sm-config-app-secret-status"></small>
+                                </div>
                             </div>
                         </div>
                     </div>
