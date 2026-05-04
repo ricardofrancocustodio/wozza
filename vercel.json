@@ -10,6 +10,9 @@
     }
   ],
   "routes": [
+    { "src": "/privacy-policy\\.html", "status": 301, "headers": { "Location": "/privacy-policy" } },
+    { "src": "/terms-of-service\\.html", "status": 301, "headers": { "Location": "/terms-of-service" } },
+    { "src": "/privacy-portal\\.html", "status": 301, "headers": { "Location": "/portal-privacidade" } },
     { "src": "/(.*)", "dest": "/server.js" }
   ]
 }

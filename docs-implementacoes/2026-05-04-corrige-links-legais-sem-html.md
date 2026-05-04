@@ -15,12 +15,14 @@
 
 - `login.html`
 - `server.js`
+- `vercel.json`
 
 ## Criterios de aceite verificados
 
 - `node --check server.js` sem erro;
 - VS Code Problems sem erro em `login.html` e `server.js`;
-- rotas antigas agora redirecionam para as rotas publicas sem extensao.
+- VS Code Problems sem erro em `vercel.json`;
+- rotas antigas agora possuem redirect configurado no backend e na camada de roteamento da Vercel para as rotas publicas sem extensao.
 
 ## Objetivo da correcao
 
