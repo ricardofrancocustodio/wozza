@@ -755,32 +755,39 @@ app.get('/auth/meta/callback', async (req, res) => {
             `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}&fields=id,name,access_token,instagram_business_account`
         );
         const pages = pagesRes.ok ? (pagesRes.data.data || []) : [];
-        const firstPage = pages[0] || {};
-        const pageInfo = graphPageInfo(firstPage);
-        const savedAt = new Date().toISOString();
-        const credentialsEncrypted = encryptSocialCredentials({
-            provider: 'meta',
-            access_token: accessToken,
-            page_access_token: firstPage.access_token || accessToken,
-            token_type: longRes.ok ? longRes.data.token_type || null : tokenRes.data.token_type || null,
-            expires_in: longRes.ok ? longRes.data.expires_in || null : tokenRes.data.expires_in || null,
-            saved_at: savedAt
-        });
 
-        const config = await db.upsertConfig(schoolId, platform, {
-            enabled: true,
-            connection_status: 'CONNECTED',
-            account_label: firstPage.name || null,
-            credentials_present: JSON.stringify({ access_token: true, refresh_token: false, app_secret: false }),
-            credentials_encrypted: credentialsEncrypted,
-            metadata: JSON.stringify({ ...pageInfo, connected_at: savedAt })
-        });
+        if (!pages.length) throw new Error('Nenhuma página encontrada. Certifique-se de ser admin de uma página.');
+        if (pages.length === 1) {
+            const pageData = pages[0];
+            const pageInfo = graphPageInfo(pageData);
+            const savedAt = new Date().toISOString();
+            const credentialsEncrypted = encryptSocialCredentials({
+                provider: 'meta',
+                access_token: accessToken,
+                page_access_token: pageData.access_token || accessToken,
+                token_type: longRes.ok ? longRes.data.token_type || null : tokenRes.data.token_type || null,
+                expires_in: longRes.ok ? longRes.data.expires_in || null : tokenRes.data.expires_in || null,
+                saved_at: savedAt
+            });
 
-        await db.markFirstSocialConnectedBySchool(schoolId);
-        const syncResult = await syncMetaPosts(schoolId, config.platform);
-        if (syncResult.warnings.length) console.warn('Meta initial sync warnings:', syncResult.warnings);
+            const config = await db.upsertConfig(schoolId, platform, {
+                enabled: true,
+                connection_status: 'CONNECTED',
+                account_label: pageData.name || null,
+                credentials_present: JSON.stringify({ access_token: true, refresh_token: false, app_secret: false }),
+                credentials_encrypted: credentialsEncrypted,
+                metadata: JSON.stringify({ ...pageInfo, connected_at: savedAt })
+            });
 
-        res.redirect(`/social-monitor?oauth_ok=${encodeURIComponent(platform)}&school_id=${encodeURIComponent(schoolId)}`);
+            await db.markFirstSocialConnectedBySchool(schoolId);
+            const syncResult = await syncMetaPosts(schoolId, config.platform);
+            if (syncResult.warnings.length) console.warn('Meta initial sync warnings:', syncResult.warnings);
+
+            return res.redirect(`/social-monitor?oauth_ok=${encodeURIComponent(platform)}&school_id=${encodeURIComponent(schoolId)}`);
+        }
+
+        const state = Buffer.from(JSON.stringify({ accessToken, schoolId, platform })).toString('base64url');
+        res.redirect(`/select-facebook-page?state=${encodeURIComponent(state)}&pages=${encodeURIComponent(JSON.stringify(pages.map(p => ({ id: p.id, name: p.name, ig: p.instagram_business_account?.id || null }))))}`)
     } catch (err) {
         console.error('Meta OAuth error:', err);
         res.redirect(`/social-monitor?oauth_error=${encodeURIComponent(err.message)}&platform=${platform}`);
@@ -943,6 +950,49 @@ app.post('/api/onboarding/dismiss-connect-social', async (req, res) => {
     }
 });
 
+// ─── Seleção de Página Facebook ───────────────────────────────────────────────
+
+app.post('/api/auth/meta/select-page', async (req, res) => {
+    const state = String(req.body?.state || '').trim();
+    const pageId = String(req.body?.page_id || '').trim();
+    const pages = Array.isArray(req.body?.pages) ? req.body.pages : [];
+
+    if (!state || !pageId) return res.status(400).json({ error: 'State e page_id são obrigatórios' });
+
+    try {
+        const { accessToken, schoolId, platform } = JSON.parse(Buffer.from(state, 'base64url').toString('utf8'));
+        const selectedPage = pages.find(p => p.id === pageId);
+        if (!selectedPage) return res.status(400).json({ error: 'Página não encontrada' });
+
+        const pageInfo = { page_id: selectedPage.id, page_name: selectedPage.name, instagram_business_id: selectedPage.ig };
+        const savedAt = new Date().toISOString();
+        const credentialsEncrypted = encryptSocialCredentials({
+            provider: 'meta',
+            access_token: accessToken,
+            page_access_token: accessToken,
+            saved_at: savedAt
+        });
+
+        const config = await db.upsertConfig(schoolId, platform, {
+            enabled: true,
+            connection_status: 'CONNECTED',
+            account_label: selectedPage.name || null,
+            credentials_present: JSON.stringify({ access_token: true, refresh_token: false, app_secret: false }),
+            credentials_encrypted: credentialsEncrypted,
+            metadata: JSON.stringify({ ...pageInfo, connected_at: savedAt })
+        });
+
+        await db.markFirstSocialConnectedBySchool(schoolId);
+        const syncResult = await syncMetaPosts(schoolId, config.platform);
+        if (syncResult.warnings.length) console.warn('Meta initial sync warnings:', syncResult.warnings);
+
+        res.json({ ok: true, redirectTo: `/social-monitor?oauth_ok=${encodeURIComponent(platform)}&school_id=${encodeURIComponent(schoolId)}` });
+    } catch (err) {
+        console.error('Select page error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── Páginas ──────────────────────────────────────────────────────────────────
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
@@ -951,6 +1001,7 @@ app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'login.html'))
 app.get('/forgot-password', (req, res) => res.sendFile(path.join(__dirname, 'forgot-password.html')));
 app.get('/reset-password', (req, res) => res.sendFile(path.join(__dirname, 'reset-password.html')));
 app.get('/first-password', (req, res) => res.sendFile(path.join(__dirname, 'first-password.html')));
+app.get('/select-facebook-page', (req, res) => res.sendFile(path.join(__dirname, 'select-facebook-page.html')));
 app.get('/social-monitor', (req, res) => res.sendFile(path.join(__dirname, 'social-monitor.html')));
 app.get('/plans',    (req, res) => res.sendFile(path.join(__dirname, 'plans.html')));
 app.get('/onboarding', (req, res) => res.sendFile(path.join(__dirname, 'onboarding.html')));
