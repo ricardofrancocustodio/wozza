@@ -232,6 +232,20 @@ function normalizeFacebookPost(raw, schoolId, metadata) {
     };
 }
 
+async function tryFetchInstagramBusinessId(pageId, accessToken) {
+    try {
+        const res = await fetchMeta(`${pageId}`, accessToken, {
+            fields: 'instagram_business_account{id,username}'
+        });
+        if (res.ok && res.data?.instagram_business_account?.id) {
+            return res.data.instagram_business_account.id;
+        }
+    } catch (err) {
+        console.log(`[Sync] Erro ao buscar Instagram Business ID para página ${pageId}:`, err.message);
+    }
+    return null;
+}
+
 async function syncMetaPostsForConfig(config) {
     if (!config?.credentials_encrypted) throw new Error('Credenciais Meta não encontradas para este canal');
     const credentials = decryptSocialCredentials(config.credentials_encrypted);
@@ -240,11 +254,16 @@ async function syncMetaPostsForConfig(config) {
     const summary = { platform: config.platform, synced: 0, warnings: [] };
 
     if (config.platform === 'INSTAGRAM') {
-        if (!metadata.instagram_business_id) {
-            summary.warnings.push('Conta Instagram Business não encontrada na página Meta conectada.');
-            return summary;
+        let igBusinessId = metadata.instagram_business_id;
+
+        if (!igBusinessId) {
+            igBusinessId = await tryFetchInstagramBusinessId(metadata.page_id, accessToken);
+            if (!igBusinessId) {
+                summary.warnings.push('Conta Instagram Business não encontrada. A página Facebook precisa ter uma conta de Instagram Professional vinculada, e o app Meta precisa estar publicado para acessá-la.');
+                return summary;
+            }
         }
-        const mediaRes = await fetchMeta(`${metadata.instagram_business_id}/media`, accessToken, {
+        const mediaRes = await fetchMeta(`${igBusinessId}/media`, accessToken, {
             fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count,username',
             limit: '50'
         });
