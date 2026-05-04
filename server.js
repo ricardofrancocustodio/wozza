@@ -983,6 +983,9 @@ app.get('/billing',  (req, res) => res.sendFile(path.join(__dirname, 'billing.ht
 app.get('/privacy-policy',    (req, res) => res.sendFile(path.join(__dirname, 'privacy-policy.html')));
 app.get('/terms-of-service',  (req, res) => res.sendFile(path.join(__dirname, 'terms-of-service.html')));
 app.get('/portal-privacidade',(req, res) => res.sendFile(path.join(__dirname, 'privacy-portal.html')));
+app.get('/privacy-policy.html', (req, res) => res.redirect(301, '/privacy-policy'));
+app.get('/terms-of-service.html', (req, res) => res.redirect(301, '/terms-of-service'));
+app.get('/privacy-portal.html', (req, res) => res.redirect(301, '/portal-privacidade'));
 
 // ─── API: Monitor Social ──────────────────────────────────────────────────────
 
