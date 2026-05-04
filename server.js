@@ -752,11 +752,26 @@ app.get('/auth/meta/callback', async (req, res) => {
         const accessToken = longRes.ok ? longRes.data.access_token : shortToken;
 
         const pagesRes = await fetchJson(
-            `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}&fields=id,name,access_token,instagram_business_account`
+            `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}&fields=id,name,access_token`
         );
-        const pages = pagesRes.ok ? (pagesRes.data.data || []) : [];
+        let pages = pagesRes.ok ? (pagesRes.data.data || []) : [];
 
         if (!pages.length) throw new Error('Nenhuma página encontrada. Certifique-se de ser admin de uma página.');
+
+        // Obter Instagram Business ID para cada página
+        for (const page of pages) {
+            try {
+                const igRes = await fetchJson(
+                    `https://graph.facebook.com/v19.0/${page.id}?access_token=${accessToken}&fields=instagram_business_account`
+                );
+                if (igRes.ok && igRes.data.instagram_business_account) {
+                    page.instagram_business_account = igRes.data.instagram_business_account;
+                }
+            } catch (_) {
+                // Continuar se não conseguir obter IG
+            }
+        }
+
         if (pages.length === 1) {
             const pageData = pages[0];
             const pageInfo = graphPageInfo(pageData);
