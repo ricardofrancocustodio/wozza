@@ -678,6 +678,120 @@ app.get('/auth/meta/start', (req, res) => {
     res.redirect(`https://www.facebook.com/v19.0/dialog/oauth?${params}`);
 });
 
+app.post('/api/auth/system-user/validate', async (req, res) => {
+    const accessToken = String(req.body?.access_token || '').trim();
+    if (!accessToken) return res.status(400).json({ error: 'access_token é obrigatório' });
+
+    try {
+        const meRes = await fetchJson(`https://graph.facebook.com/v19.0/me?access_token=${accessToken}&fields=id,name`);
+        if (!meRes.ok) {
+            return res.status(400).json({ error: meRes.data?.error?.message || 'Token inválido' });
+        }
+
+        const pagesRes = await fetchJson(
+            `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}&fields=id,name,access_token,instagram_business_account{id,username},connected_instagram_account{id,username}&limit=100`
+        );
+        console.log('[System User] Pages response:', JSON.stringify(pagesRes.data, null, 2));
+
+        const pages = pagesRes.ok ? (pagesRes.data.data || []) : [];
+
+        for (const page of pages) {
+            if (!page.instagram_business_account?.id && !page.connected_instagram_account?.id) {
+                try {
+                    const pageToken = page.access_token || accessToken;
+                    const igRes = await fetchJson(
+                        `https://graph.facebook.com/v19.0/${page.id}?access_token=${pageToken}&fields=instagram_business_account{id,username},connected_instagram_account{id,username}`
+                    );
+                    const igAccount = igRes.data?.instagram_business_account || igRes.data?.connected_instagram_account;
+                    if (igAccount?.id) {
+                        page.instagram_business_account = igAccount;
+                    }
+                } catch (_) {}
+            }
+        }
+
+        res.json({
+            ok: true,
+            user: meRes.data,
+            pages: pages.map(p => ({
+                id: p.id,
+                name: p.name,
+                access_token: p.access_token || null,
+                instagram_business_account: p.instagram_business_account?.id ? { id: p.instagram_business_account.id, username: p.instagram_business_account.username } : null
+            }))
+        });
+    } catch (err) {
+        console.error('System User validate error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/auth/system-user/connect', async (req, res) => {
+    const { access_token, school_id, platform, page_id } = req.body || {};
+    if (!access_token || !school_id || !platform || !page_id) {
+        return res.status(400).json({ error: 'access_token, school_id, platform e page_id são obrigatórios' });
+    }
+
+    try {
+        const pagesRes = await fetchJson(
+            `https://graph.facebook.com/v19.0/me/accounts?access_token=${access_token}&fields=id,name,access_token,instagram_business_account{id,username},connected_instagram_account{id,username}&limit=100`
+        );
+        const pages = pagesRes.ok ? (pagesRes.data.data || []) : [];
+        const selectedPage = pages.find(p => p.id === page_id);
+
+        if (!selectedPage) return res.status(404).json({ error: 'Página não encontrada nesse token' });
+
+        let igId = selectedPage.instagram_business_account?.id || selectedPage.connected_instagram_account?.id;
+        if (!igId) {
+            const pageToken = selectedPage.access_token || access_token;
+            const igRes = await fetchJson(
+                `https://graph.facebook.com/v19.0/${selectedPage.id}?access_token=${pageToken}&fields=instagram_business_account{id,username},connected_instagram_account{id,username}`
+            );
+            igId = igRes.data?.instagram_business_account?.id || igRes.data?.connected_instagram_account?.id || null;
+        }
+
+        const savedAt = new Date().toISOString();
+        const credentialsEncrypted = encryptSocialCredentials({
+            provider: 'meta_system_user',
+            access_token,
+            page_access_token: selectedPage.access_token || access_token,
+            saved_at: savedAt
+        });
+
+        const metadata = {
+            page_id: selectedPage.id,
+            page_name: selectedPage.name,
+            instagram_business_id: igId || '',
+            connection_type: 'system_user',
+            connected_at: savedAt
+        };
+
+        await db.upsertConfig(school_id, platform, {
+            enabled: true,
+            connection_status: 'CONNECTED',
+            account_label: selectedPage.name || null,
+            credentials_present: JSON.stringify({ access_token: true, refresh_token: false, app_secret: false }),
+            credentials_encrypted: credentialsEncrypted,
+            metadata: JSON.stringify(metadata)
+        });
+
+        await db.markFirstSocialConnectedBySchool(school_id);
+
+        const syncResult = await syncMetaPosts(school_id, platform);
+
+        res.json({
+            ok: true,
+            instagram_business_id: igId || null,
+            page_id: selectedPage.id,
+            page_name: selectedPage.name,
+            sync: syncResult
+        });
+    } catch (err) {
+        console.error('System User connect error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/social/refresh-instagram-id', async (req, res) => {
     const schoolId = String(req.body?.school_id || '').trim();
     if (!schoolId) return res.status(400).json({ error: 'school_id é obrigatório' });
@@ -1126,6 +1240,7 @@ app.get('/forgot-password', (req, res) => res.sendFile(path.join(__dirname, 'for
 app.get('/reset-password', (req, res) => res.sendFile(path.join(__dirname, 'reset-password.html')));
 app.get('/first-password', (req, res) => res.sendFile(path.join(__dirname, 'first-password.html')));
 app.get('/select-facebook-page', (req, res) => res.sendFile(path.join(__dirname, 'select-facebook-page.html')));
+app.get('/connect-system-user', (req, res) => res.sendFile(path.join(__dirname, 'connect-system-user.html')));
 app.get('/social-monitor', (req, res) => res.sendFile(path.join(__dirname, 'social-monitor.html')));
 app.get('/plans',    (req, res) => res.sendFile(path.join(__dirname, 'plans.html')));
 app.get('/onboarding', (req, res) => res.sendFile(path.join(__dirname, 'onboarding.html')));

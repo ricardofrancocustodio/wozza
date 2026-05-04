@@ -928,14 +928,18 @@ function renderOAuthSection(platform) {
     $('#sm-oauth-status-label').text('');
 
     if (provider === 'meta' && (platform === 'INSTAGRAM' || platform === 'FACEBOOK')) {
+        const systemUserUrl = `/connect-system-user?platform=${platform}&school_id=${encodeURIComponent(schoolId)}`;
         $('#sm-oauth-section').html(`
-            <button class="btn btn-block font-weight-bold" id="sm-fb-login-btn" style="background:${color};color:#fff;border-radius:8px;padding:12px;">
-                <i class="${icon} mr-2"></i>${label}
-            </button>
-            <div class="small text-muted mt-2">
-                <i class="fas fa-lock mr-1"></i>
-                Você será redirecionado para login seguro. Nenhuma senha é armazenada.
+            <a href="${systemUserUrl}" class="btn btn-block font-weight-bold" style="background:${color};color:#fff;border-radius:8px;padding:12px;">
+                <i class="fas fa-key mr-2"></i>Conectar com Token Permanente (Recomendado)
+            </a>
+            <div class="small text-muted mt-2 mb-3">
+                <i class="fas fa-shield-alt mr-1"></i>
+                Token permanente via Meta Business Suite. Não expira, ideal para uso contínuo.
             </div>
+            <button class="btn btn-block btn-outline-secondary font-weight-bold" id="sm-fb-login-btn" style="border-radius:8px;padding:10px;font-size:.9rem;">
+                <i class="${icon} mr-2"></i>Ou: Login rápido com Facebook (token expira em 60 dias)
+            </button>
         `);
 
         $('#sm-fb-login-btn').on('click', function() {

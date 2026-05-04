@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conectar via Token Permanente | Wozza</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/fontawesome/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body { background: #f5f7fa; padding: 24px 0; }
+        .container-narrow { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+        .step-card {
+            background: #fff;
+            border: 1px solid #e3e8ee;
+            border-radius: 12px;
+            padding: 18px 20px;
+            margin-bottom: 14px;
+        }
+        .step-num {
+            display: inline-flex;
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            background: #2c5364; color: #fff;
+            align-items: center; justify-content: center;
+            font-weight: 700; font-size: 13px;
+            margin-right: 10px;
+        }
+        .step-title { font-weight: 700; color: #203a43; margin-bottom: 8px; display: flex; align-items: center; }
+        .step-body { font-size: 14px; color: #495057; line-height: 1.55; }
+        .step-body code {
+            background: #eef3f7;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12.5px;
+            color: #c7254e;
+        }
+        .step-body a { color: #2c5364; font-weight: 600; }
+        .perm-list { margin: 8px 0 0 0; padding-left: 18px; }
+        .perm-list li { font-family: monospace; font-size: 12.5px; color: #2c5364; }
+        .submit-card {
+            background: linear-gradient(135deg, #203a43, #2c5364);
+            color: #fff; border-radius: 12px;
+            padding: 22px;
+        }
+        .submit-card h5 { color: #fff; font-weight: 700; }
+        .submit-card label { font-size: 13px; font-weight: 600; opacity: .9; }
+        .submit-card .form-control { border-radius: 8px; border: none; }
+        .pages-list { margin-top: 16px; }
+        .page-item {
+            background: #fff; color: #203a43;
+            border: 2px solid #d8e4ea; border-radius: 10px;
+            padding: 14px; margin-bottom: 10px; cursor: pointer;
+            transition: all 0.15s;
+        }
+        .page-item:hover { border-color: #2c5364; }
+        .page-item.selected { border-color: #28a745; background: #e8f7ec; }
+        .page-item .name { font-weight: 700; font-size: 15px; }
+        .page-item .meta { font-size: 12px; color: #6c757d; margin-top: 4px; }
+        .page-item .ig-ok { color: #28a745; font-weight: 600; }
+        .page-item .ig-no { color: #dc3545; font-weight: 600; }
+    </style>
+</head>
+<body>
+<div class="container-narrow">
+    <h3 class="mb-1"><i class="fab fa-facebook mr-2" style="color:#2c5364;"></i>Conectar Página com Token Permanente</h3>
+    <p class="text-muted mb-4">Use um <strong>System User Token</strong> do Meta Business para conectar de forma permanente, sem expiração.</p>
+
+    <div class="step-card">
+        <div class="step-title"><span class="step-num">1</span>Acesse o Meta Business Suite</div>
+        <div class="step-body">
+            Vá em <a href="https://business.facebook.com/settings/system-users" target="_blank">business.facebook.com/settings/system-users</a> e selecione o Business Portfolio que tem suas páginas.
+        </div>
+    </div>
+
+    <div class="step-card">
+        <div class="step-title"><span class="step-num">2</span>Crie um System User</div>
+        <div class="step-body">
+            Clique em <code>Add</code> → <code>Create system user</code>:
+            <ul class="mb-0 mt-2">
+                <li>Name: <code>Wozza Integration</code></li>
+                <li>Role: <code>Admin</code></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="step-card">
+        <div class="step-title"><span class="step-num">3</span>Atribua páginas ao System User</div>
+        <div class="step-body">
+            Com o System User selecionado, clique em <code>Add Assets</code> → <code>Pages</code> e selecione a(s) página(s) que quer conectar com permissão <strong>Full Control</strong>.
+        </div>
+    </div>
+
+    <div class="step-card">
+        <div class="step-title"><span class="step-num">4</span>Gere o token permanente</div>
+        <div class="step-body">
+            Ainda no System User, clique em <code>Generate New Token</code>:
+            <ul class="mb-0 mt-2">
+                <li>App: <code>wozza-social-monitor</code></li>
+                <li>Token expiration: <code>Never</code></li>
+                <li>Permissions (marque todas):</li>
+            </ul>
+            <ul class="perm-list">
+                <li>instagram_basic</li>
+                <li>instagram_manage_comments</li>
+                <li>instagram_manage_insights</li>
+                <li>pages_show_list</li>
+                <li>pages_read_engagement</li>
+                <li>pages_read_user_content</li>
+                <li>business_management</li>
+            </ul>
+            <div class="mt-2">Clique <code>Generate Token</code> e copie o token gerado (aparece só uma vez!).</div>
+        </div>
+    </div>
+
+    <div class="step-card">
+        <div class="step-title"><span class="step-num">5</span>Cole o token aqui</div>
+        <div class="step-body">
+            <textarea id="token-input" class="form-control" rows="3" placeholder="Cole aqui o System User Token (começa com EAA...)"></textarea>
+            <div class="mt-2">
+                <button id="validate-btn" class="btn btn-primary"><i class="fas fa-check mr-1"></i>Validar Token e Listar Páginas</button>
+                <span id="loading" style="display:none;" class="ml-2 text-muted"><i class="fas fa-spinner fa-spin"></i> Validando...</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="pages-section" class="step-card" style="display:none;">
+        <div class="step-title"><span class="step-num">6</span>Selecione a página que deseja conectar</div>
+        <div class="step-body">
+            <div id="pages-list" class="pages-list"></div>
+            <button id="connect-btn" class="btn btn-success btn-lg btn-block mt-3" disabled><i class="fas fa-plug mr-1"></i>Conectar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const params = new URLSearchParams(location.search);
+    const platform = (params.get('platform') || 'INSTAGRAM').toUpperCase();
+    const schoolId = params.get('school_id') || sessionStorage.getItem('SCHOOL_ID') || 'wozza-default-school';
+    let validatedToken = null;
+    let selectedPageId = null;
+
+    document.getElementById('validate-btn').onclick = async () => {
+        const token = document.getElementById('token-input').value.trim();
+        if (!token) return Swal.fire('Erro', 'Cole o token primeiro', 'warning');
+
+        document.getElementById('loading').style.display = 'inline';
+        document.getElementById('validate-btn').disabled = true;
+
+        try {
+            const r = await fetch('/api/auth/system-user/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ access_token: token })
+            });
+            const data = await r.json();
+
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('validate-btn').disabled = false;
+
+            if (!data.ok) return Swal.fire('Token Inválido', data.error || 'Verifique se copiou corretamente', 'error');
+
+            validatedToken = token;
+            renderPages(data.pages);
+        } catch (err) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('validate-btn').disabled = false;
+            Swal.fire('Erro', err.message, 'error');
+        }
+    };
+
+    function renderPages(pages) {
+        const container = document.getElementById('pages-list');
+        const section = document.getElementById('pages-section');
+
+        if (!pages.length) {
+            container.innerHTML = '<div class="alert alert-warning">Nenhuma página atribuída a este System User. Volte ao passo 3.</div>';
+            section.style.display = 'block';
+            return;
+        }
+
+        container.innerHTML = '';
+        pages.forEach(page => {
+            const div = document.createElement('div');
+            div.className = 'page-item';
+            const igInfo = page.instagram_business_account
+                ? `<span class="ig-ok"><i class="fab fa-instagram mr-1"></i>Instagram: @${page.instagram_business_account.username || page.instagram_business_account.id}</span>`
+                : `<span class="ig-no"><i class="fas fa-times-circle mr-1"></i>Sem Instagram vinculado</span>`;
+            div.innerHTML = `
+                <div class="name">${page.name}</div>
+                <div class="meta">ID: ${page.id} · ${igInfo}</div>
+            `;
+            div.onclick = () => {
+                document.querySelectorAll('.page-item').forEach(el => el.classList.remove('selected'));
+                div.classList.add('selected');
+                selectedPageId = page.id;
+                document.getElementById('connect-btn').disabled = false;
+            };
+            container.appendChild(div);
+        });
+
+        section.style.display = 'block';
+    }
+
+    document.getElementById('connect-btn').onclick = async () => {
+        if (!validatedToken || !selectedPageId) return;
+        const btn = document.getElementById('connect-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Conectando e sincronizando...';
+
+        try {
+            const r = await fetch('/api/auth/system-user/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    access_token: validatedToken,
+                    school_id: schoolId,
+                    platform,
+                    page_id: selectedPageId
+                })
+            });
+            const data = await r.json();
+
+            if (!data.ok) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-plug mr-1"></i>Conectar';
+                return Swal.fire('Erro', data.error || 'Falha ao conectar', 'error');
+            }
+
+            const synced = data.sync?.synced || 0;
+            const warnings = data.sync?.warnings || [];
+            const igMsg = data.instagram_business_id ? `Instagram ID: ${data.instagram_business_id}` : 'Sem Instagram vinculado nessa página';
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Conectado!',
+                html: `<div class="text-left">
+                    <p><strong>Página:</strong> ${data.page_name}</p>
+                    <p><strong>${igMsg}</strong></p>
+                    <p><strong>${synced} posts sincronizados</strong></p>
+                    ${warnings.length ? '<p class="text-warning small">' + warnings.join('<br>') + '</p>' : ''}
+                </div>`
+            }).then(() => {
+                location.href = `/social-monitor?oauth_ok=${encodeURIComponent(platform)}&school_id=${encodeURIComponent(schoolId)}`;
+            });
+        } catch (err) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-plug mr-1"></i>Conectar';
+            Swal.fire('Erro', err.message, 'error');
+        }
+    };
+</script>
+</body>
+</html>
