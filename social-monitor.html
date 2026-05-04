@@ -206,6 +206,25 @@
         .sm-post-menu-btn { background: transparent; border: none; color: #8e8e8e; padding: 4px 8px; cursor: pointer; }
         .sm-post-menu-btn:hover { color: #262626; }
     </style>
+
+    <!-- Facebook SDK -->
+    <script>
+        window.fbAsyncInit = function() {
+            FB.init({
+                appId: '1522673759252887',
+                xfbml: false,
+                version: 'v19.0'
+            });
+        };
+
+        (function(d, s, id) {
+            var js, fjs = d.getElementsByTagName(s)[0];
+            if (d.getElementById(id)) return;
+            js = d.createElement(s); js.id = id;
+            js.src = "https://connect.facebook.net/pt_BR/sdk.js";
+            fjs.parentNode.insertBefore(js, fjs);
+        }(document, 'script', 'facebook-jssdk'));
+    </script>
 </head>
 
 <body class="hold-transition sidebar-mini layout-fixed" data-auth="required" data-page="social-monitor">
@@ -893,8 +912,6 @@ function renderOAuthSection(platform) {
                      : provider === 'tiktok' ? oauthStatus.tiktok
                      : oauthStatus.linkedin;
 
-    const oauthUrl = `/auth/${provider}/start?platform=${platform}&school_id=${encodeURIComponent(schoolId)}`;
-
     if (!configured) {
         $('#sm-oauth-status-label').text('');
         $('#sm-oauth-section').html(`
@@ -909,15 +926,74 @@ function renderOAuthSection(platform) {
     }
 
     $('#sm-oauth-status-label').text('');
-    $('#sm-oauth-section').html(`
-        <a href="${oauthUrl}" class="btn btn-block font-weight-bold" style="background:${color};color:#fff;border-radius:8px;padding:12px;">
-            <i class="${icon} mr-2"></i>${label}
-        </a>
-        <div class="small text-muted mt-2">
-            <i class="fas fa-lock mr-1"></i>
-            Você será redirecionado para login seguro. Nenhuma senha é armazenada.
-        </div>
-    `);
+
+    if (provider === 'meta' && (platform === 'INSTAGRAM' || platform === 'FACEBOOK')) {
+        $('#sm-oauth-section').html(`
+            <button class="btn btn-block font-weight-bold" id="sm-fb-login-btn" style="background:${color};color:#fff;border-radius:8px;padding:12px;">
+                <i class="${icon} mr-2"></i>${label}
+            </button>
+            <div class="small text-muted mt-2">
+                <i class="fas fa-lock mr-1"></i>
+                Você será redirecionado para login seguro. Nenhuma senha é armazenada.
+            </div>
+        `);
+
+        $('#sm-fb-login-btn').on('click', function() {
+            FB.login(function(response) {
+                if (response.authResponse) {
+                    handleFacebookLogin(response.authResponse, platform, schoolId);
+                } else {
+                    Swal.fire('Cancelado', 'Login foi cancelado.', 'warning');
+                }
+            }, {
+                scope: 'public_profile,email,instagram_basic,instagram_manage_comments,pages_show_list,business_management',
+                auth_type: 'reauthenticate'
+            });
+        });
+    } else {
+        const oauthUrl = `/auth/${provider}/start?platform=${platform}&school_id=${encodeURIComponent(schoolId)}`;
+        $('#sm-oauth-section').html(`
+            <a href="${oauthUrl}" class="btn btn-block font-weight-bold" style="background:${color};color:#fff;border-radius:8px;padding:12px;">
+                <i class="${icon} mr-2"></i>${label}
+            </a>
+            <div class="small text-muted mt-2">
+                <i class="fas fa-lock mr-1"></i>
+                Você será redirecionado para login seguro. Nenhuma senha é armazenada.
+            </div>
+        `);
+    }
+}
+
+async function handleFacebookLogin(authResponse, platform, schoolId) {
+    const btn = $('#sm-fb-login-btn');
+    btn.disabled = true;
+    btn.html('<i class="fas fa-spinner fa-spin mr-1"></i>Processando...');
+
+    try {
+        const res = await fetch('/api/auth/facebook/login-sdk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                accessToken: authResponse.accessToken,
+                platform,
+                schoolId
+            })
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+            Swal.fire('Conectado!', 'Sua conta foi conectada com sucesso.', 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            Swal.fire('Erro', data.error || 'Não foi possível conectar', 'error');
+            btn.disabled = false;
+            btn.html('<i class="fab fa-facebook mr-2"></i>Conectar com Meta (' + platform + ')');
+        }
+    } catch (err) {
+        Swal.fire('Erro', err.message, 'error');
+        btn.disabled = false;
+        btn.html('<i class="fab fa-facebook mr-2"></i>Conectar com Meta (' + platform + ')');
+    }
 }
 
 // Interceptar abertura do modal para renderizar botão OAuth

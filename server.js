@@ -678,6 +678,68 @@ app.get('/auth/meta/start', (req, res) => {
     res.redirect(`https://www.facebook.com/v19.0/dialog/oauth?${params}`);
 });
 
+app.post('/api/auth/facebook/login-sdk', async (req, res) => {
+    const { accessToken, platform, schoolId } = req.body;
+    if (!accessToken || !platform || !schoolId) {
+        return res.status(400).json({ error: 'Token, platform e schoolId são obrigatórios' });
+    }
+
+    try {
+        const pagesRes = await fetchJson(
+            `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}&fields=id,name,access_token`
+        );
+        let pages = pagesRes.ok ? (pagesRes.data.data || []) : [];
+
+        if (!pages.length) throw new Error('Nenhuma página encontrada.');
+
+        for (const page of pages) {
+            try {
+                const igRes = await fetchJson(
+                    `https://graph.facebook.com/v19.0/${page.id}?access_token=${accessToken}&fields=instagram_business_account{id,username}`
+                );
+                if (igRes.ok && igRes.data.instagram_business_account?.id) {
+                    page.instagram_business_account = { id: igRes.data.instagram_business_account.id };
+                }
+            } catch (err) {
+                console.log(`[FB SDK] Error fetching IG for page ${page.id}:`, err.message);
+            }
+        }
+
+        if (pages.length === 1) {
+            const pageData = pages[0];
+            const pageInfo = graphPageInfo(pageData);
+            const savedAt = new Date().toISOString();
+            const credentialsEncrypted = encryptSocialCredentials({
+                provider: 'meta',
+                access_token: accessToken,
+                page_access_token: pageData.access_token || accessToken,
+                saved_at: savedAt
+            });
+
+            await db.upsertConfig(schoolId, platform, {
+                enabled: true,
+                connection_status: 'CONNECTED',
+                account_label: pageData.name || null,
+                credentials_present: JSON.stringify({ access_token: true, refresh_token: false, app_secret: false }),
+                credentials_encrypted: credentialsEncrypted,
+                metadata: JSON.stringify({ ...pageInfo, connected_at: savedAt })
+            });
+
+            await db.markFirstSocialConnectedBySchool(schoolId);
+            return res.json({ ok: true });
+        }
+
+        const state = Buffer.from(JSON.stringify({ accessToken, schoolId, platform })).toString('base64url');
+        res.json({
+            ok: true,
+            redirectTo: `/select-facebook-page?state=${encodeURIComponent(state)}&pages=${encodeURIComponent(JSON.stringify(pages.map(p => ({ id: p.id, name: p.name, ig: p.instagram_business_account?.id || null }))))}`
+        });
+    } catch (err) {
+        console.error('FB SDK login error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/auth/meta/callback', async (req, res) => {
     const { code, state, error, error_description } = req.query;
     if (error) return res.redirect(`/social-monitor?oauth_error=${encodeURIComponent(error_description || error)}`);
