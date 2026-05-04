@@ -691,13 +691,14 @@ app.get('/auth/meta/callback', async (req, res) => {
         for (const page of pages) {
             try {
                 const igRes = await fetchJson(
-                    `https://graph.facebook.com/v19.0/${page.id}?access_token=${accessToken}&fields=instagram_business_account`
+                    `https://graph.facebook.com/v19.0/${page.id}?access_token=${accessToken}&fields=instagram_business_account{id,username}`
                 );
-                if (igRes.ok && igRes.data.instagram_business_account) {
-                    page.instagram_business_account = igRes.data.instagram_business_account;
+                console.log(`[Meta OAuth] Page ${page.id} IG response:`, JSON.stringify(igRes.data, null, 2));
+                if (igRes.ok && igRes.data.instagram_business_account?.id) {
+                    page.instagram_business_account = { id: igRes.data.instagram_business_account.id };
                 }
-            } catch (_) {
-                // Continuar se não conseguir obter IG
+            } catch (err) {
+                console.log(`[Meta OAuth] Error fetching IG for page ${page.id}:`, err.message);
             }
         }
 
