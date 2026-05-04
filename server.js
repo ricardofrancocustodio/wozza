@@ -678,6 +678,67 @@ app.get('/auth/meta/start', (req, res) => {
     res.redirect(`https://www.facebook.com/v19.0/dialog/oauth?${params}`);
 });
 
+app.post('/api/social/refresh-instagram-id', async (req, res) => {
+    const schoolId = String(req.body?.school_id || '').trim();
+    if (!schoolId) return res.status(400).json({ error: 'school_id é obrigatório' });
+
+    try {
+        const config = await db.getConfig(schoolId, 'INSTAGRAM');
+        if (!config?.credentials_encrypted) return res.status(404).json({ error: 'Configuração Instagram não encontrada' });
+
+        const credentials = decryptSocialCredentials(config.credentials_encrypted);
+        const metadata = config.metadata || {};
+        const accessToken = credentials.page_access_token || credentials.access_token;
+
+        const pagesRes = await fetchJson(
+            `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}&fields=id,name,access_token,instagram_business_account{id,username},connected_instagram_account{id,username}`
+        );
+        console.log('[Refresh IG] Pages response:', JSON.stringify(pagesRes.data, null, 2));
+
+        const pages = pagesRes.ok ? (pagesRes.data.data || []) : [];
+        const matchPage = metadata.page_id
+            ? pages.find(p => p.id === metadata.page_id)
+            : pages.find(p => p.name === config.account_label) || pages[0];
+
+        if (!matchPage) return res.status(404).json({ error: 'Página não encontrada nas contas do usuário', pages });
+
+        let igId = matchPage.instagram_business_account?.id || matchPage.connected_instagram_account?.id;
+
+        if (!igId) {
+            const pageToken = matchPage.access_token || accessToken;
+            const igRes = await fetchJson(
+                `https://graph.facebook.com/v19.0/${matchPage.id}?access_token=${pageToken}&fields=instagram_business_account{id,username},connected_instagram_account{id,username}`
+            );
+            console.log(`[Refresh IG] Page ${matchPage.id} response:`, JSON.stringify(igRes.data, null, 2));
+            igId = igRes.data?.instagram_business_account?.id || igRes.data?.connected_instagram_account?.id;
+        }
+
+        const newMetadata = {
+            ...metadata,
+            page_id: matchPage.id,
+            page_name: matchPage.name,
+            instagram_business_id: igId || ''
+        };
+
+        await db.upsertConfig(schoolId, 'INSTAGRAM', {
+            enabled: true,
+            metadata: JSON.stringify(newMetadata)
+        });
+
+        res.json({
+            ok: true,
+            instagram_business_id: igId || null,
+            page_id: matchPage.id,
+            page_name: matchPage.name,
+            pages_found: pages.length,
+            debug: { matchPage }
+        });
+    } catch (err) {
+        console.error('Refresh IG error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/auth/facebook/login-sdk', async (req, res) => {
     const { accessToken, platform, schoolId } = req.body;
     if (!accessToken || !platform || !schoolId) {
@@ -686,19 +747,27 @@ app.post('/api/auth/facebook/login-sdk', async (req, res) => {
 
     try {
         const pagesRes = await fetchJson(
-            `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}&fields=id,name,access_token`
+            `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}&fields=id,name,access_token,instagram_business_account{id,username}`
         );
+        console.log('[FB SDK] Pages response:', JSON.stringify(pagesRes.data, null, 2));
         let pages = pagesRes.ok ? (pagesRes.data.data || []) : [];
 
         if (!pages.length) throw new Error('Nenhuma página encontrada.');
 
         for (const page of pages) {
+            if (page.instagram_business_account?.id) {
+                console.log(`[FB SDK] Page ${page.name} já tem IG: ${page.instagram_business_account.id}`);
+                continue;
+            }
             try {
+                const pageToken = page.access_token || accessToken;
                 const igRes = await fetchJson(
-                    `https://graph.facebook.com/v19.0/${page.id}?access_token=${accessToken}&fields=instagram_business_account{id,username}`
+                    `https://graph.facebook.com/v19.0/${page.id}?access_token=${pageToken}&fields=instagram_business_account{id,username},connected_instagram_account{id,username}`
                 );
-                if (igRes.ok && igRes.data.instagram_business_account?.id) {
-                    page.instagram_business_account = { id: igRes.data.instagram_business_account.id };
+                console.log(`[FB SDK] Page ${page.id} (${page.name}) IG response:`, JSON.stringify(igRes.data, null, 2));
+                const igAccount = igRes.data?.instagram_business_account || igRes.data?.connected_instagram_account;
+                if (igRes.ok && igAccount?.id) {
+                    page.instagram_business_account = { id: igAccount.id };
                 }
             } catch (err) {
                 console.log(`[FB SDK] Error fetching IG for page ${page.id}:`, err.message);
