@@ -767,6 +767,9 @@
                 </div>
             </div>
             <div class="modal-footer">
+                <button class="btn btn-outline-info" id="sm-sync-posts-btn" style="display:none;">
+                    <i class="fas fa-sync-alt mr-1"></i>Sincronizar posts
+                </button>
                 <button class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
                 <button class="btn btn-primary" id="sm-config-save-btn">
                     <i class="fas fa-save mr-1"></i>Salvar configuração
@@ -884,6 +887,40 @@ $(document).ready(async function() {
     $('#sm-config-modal').on('shown.bs.modal', function() {
         const platform = String($('#sm-config-platform').val() || '').toUpperCase();
         if (platform) renderOAuthSection(platform);
+        // Mostrar botão de sincronização para Instagram e Facebook
+        const showSync = ['INSTAGRAM', 'FACEBOOK'].includes(platform);
+        $('#sm-sync-posts-btn').toggle(showSync);
+    });
+
+    // Sincronizar posts
+    $('#sm-sync-posts-btn').on('click', async function() {
+        const platform = String($('#sm-config-platform').val() || '').toUpperCase();
+        const schoolId = sessionStorage.getItem('SCHOOL_ID') || 'wozza-default-school';
+        const btn = $(this);
+        const originalText = btn.html();
+        btn.disabled = true;
+        btn.html('<i class="fas fa-spinner fa-spin mr-1"></i>Sincronizando...');
+        try {
+            const res = await fetch('/api/social/sync-posts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ school_id: schoolId, platform })
+            });
+            const data = await res.json();
+            Swal.fire({
+                icon: res.ok ? 'success' : 'error',
+                title: res.ok ? 'Sincronização concluída!' : 'Erro na sincronização',
+                text: `${data.synced || 0} posts sincronizados.${data.warnings?.length ? '\n⚠️ ' + data.warnings[0] : ''}`,
+                confirmButtonText: 'OK'
+            }).then(() => {
+                if (typeof loadMonitor === 'function') loadMonitor();
+            });
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Erro', text: err.message });
+        } finally {
+            btn.disabled = false;
+            btn.html(originalText);
+        }
     });
 
     // Tratar retorno do OAuth (query params na URL)
