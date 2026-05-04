@@ -635,6 +635,7 @@ const DEFAULT_META_SCOPES = [
     'instagram_basic',
     'instagram_manage_comments',
     'pages_show_list',
+    'pages_read_engagement',
     'business_management'
 ].join(',');
 
