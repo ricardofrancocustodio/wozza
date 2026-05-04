@@ -890,6 +890,25 @@ app.get('/api/oauth/status', (req, res) => {
     });
 });
 
+app.get('/api/debug/config', async (req, res) => {
+    try {
+        const schoolId = String(req.query.school_id || 'wozza-default-school');
+        const platform = String(req.query.platform || 'INSTAGRAM').toUpperCase();
+        const config = await db.getConfig(schoolId, platform);
+        if (!config) return res.json({ error: 'Configuração não encontrada' });
+        return res.json({
+            id: config.id,
+            platform: config.platform,
+            connection_status: config.connection_status,
+            account_label: config.account_label,
+            metadata: config.metadata ? JSON.parse(config.metadata) : null,
+            credentials_present: config.credentials_present ? JSON.parse(config.credentials_present) : null
+        });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── API: Billing ─────────────────────────────────────────────────────────────
 
 app.get('/api/billing/plans', async (_req, res) => {
