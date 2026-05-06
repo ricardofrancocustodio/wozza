@@ -366,6 +366,18 @@ async function updateMessage(id, fields) {
     return rows[0] || null;
 }
 
+async function updateMessageForSchool(id, schoolId, fields) {
+    const rows = await sql`
+        UPDATE social_inbox_messages SET
+            status            = COALESCE(${fields.status ?? null}, status),
+            manual_reply_text = COALESCE(${fields.manual_reply_text ?? null}, manual_reply_text),
+            updated_at        = now()
+        WHERE id = ${id} AND school_id = ${schoolId}
+        RETURNING *
+    `;
+    return rows[0] || null;
+}
+
 async function getRecentMessages(schoolId, limit = 20) {
     return sql`
         SELECT * FROM social_inbox_messages
@@ -787,7 +799,7 @@ async function dismissConnectSocial(userId) {
 module.exports = {
     sql, ensureSchema,
     ensureAllSocialPlatforms, getConfig, upsertConfig,
-    insertMessage, updateMessage, getRecentMessages, countMessages,
+    insertMessage, updateMessage, updateMessageForSchool, getRecentMessages, countMessages,
     insertAlert, getOpenAlerts, closeAlertsForMessage, setAlertsInProgress,
     getReplyConfig, upsertReplyConfig,
     insertPost, upsertSyncedPost, getPostsByDateRange,

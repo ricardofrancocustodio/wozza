@@ -379,6 +379,19 @@ async function requireCurrentUser(req) {
     return db.getUserBySessionToken(sha256(token));
 }
 
+async function requireAuthorizedSchoolId(req, requestedSchoolId) {
+    const user = await requireCurrentUser(req);
+    if (!user) return { error: 'Não autenticado', status: 401 };
+
+    const schoolId = String(requestedSchoolId || user.school_id || '').trim();
+    if (!schoolId) return { error: 'school_id é obrigatório', status: 400 };
+    if (schoolId !== user.school_id) {
+        return { error: 'school_id não pertence ao usuário autenticado', status: 403 };
+    }
+
+    return { user, schoolId };
+}
+
 async function createLoginSession(req, res, user, remember = true) {
     const token = crypto.randomBytes(32).toString('base64url');
     const expiresAt = new Date(Date.now() + (remember ? SESSION_DAYS : 1) * 24 * 60 * 60 * 1000).toISOString();
@@ -1255,8 +1268,10 @@ app.get('/privacy-portal.html', (req, res) => res.redirect(301, '/portal-privaci
 // ─── API: Monitor Social ──────────────────────────────────────────────────────
 
 app.get('/api/social-monitor/overview', async (req, res) => {
-    const schoolId = String(req.query.school_id || '').trim();
-    if (!schoolId) return res.status(400).json({ error: 'school_id é obrigatório' });
+    const auth = await requireAuthorizedSchoolId(req, req.query.school_id);
+    if (auth.error) return res.status(auth.status).json({ error: auth.error });
+
+    const { schoolId } = auth;
     try {
         const [configs, counts, recentMessages, openAlerts] = await Promise.all([
             db.ensureAllSocialPlatforms(schoolId),
@@ -1282,8 +1297,10 @@ app.get('/api/social-monitor/overview', async (req, res) => {
 });
 
 app.get('/api/social-monitor/config', async (req, res) => {
-    const schoolId = String(req.query.school_id || '').trim();
-    if (!schoolId) return res.status(400).json({ error: 'school_id é obrigatório' });
+    const auth = await requireAuthorizedSchoolId(req, req.query.school_id);
+    if (auth.error) return res.status(auth.status).json({ error: auth.error });
+
+    const { schoolId } = auth;
     try {
         const configs = await db.ensureAllSocialPlatforms(schoolId);
         return res.json({ configs: configs.map(publicConfigView) });
@@ -1294,9 +1311,12 @@ app.get('/api/social-monitor/config', async (req, res) => {
 
 app.post('/api/social-monitor/config', async (req, res) => {
     const body = req.body || {};
-    const schoolId = String(body.school_id || '').trim();
     const platform = String(body.platform || '').trim().toUpperCase();
-    if (!schoolId || !platform) return res.status(400).json({ error: 'school_id e platform são obrigatórios' });
+    const auth = await requireAuthorizedSchoolId(req, body.school_id);
+    if (auth.error) return res.status(auth.status).json({ error: auth.error });
+    const { schoolId } = auth;
+
+    if (!platform) return res.status(400).json({ error: 'school_id e platform são obrigatórios' });
     if (!db.PLATFORMS.includes(platform)) return res.status(400).json({ error: 'Plataforma inválida' });
 
     const creds = body.credentials || {};
@@ -1326,8 +1346,10 @@ app.post('/api/social-monitor/config', async (req, res) => {
 });
 
 app.get('/api/social-monitor/reply-config', async (req, res) => {
-    const schoolId = String(req.query.school_id || '').trim();
-    if (!schoolId) return res.status(400).json({ error: 'school_id é obrigatório' });
+    const auth = await requireAuthorizedSchoolId(req, req.query.school_id);
+    if (auth.error) return res.status(auth.status).json({ error: auth.error });
+
+    const { schoolId } = auth;
     try {
         return res.json({ config: await db.getReplyConfig(schoolId) });
     } catch (err) {
@@ -1337,8 +1359,10 @@ app.get('/api/social-monitor/reply-config', async (req, res) => {
 
 app.post('/api/social-monitor/reply-config', async (req, res) => {
     const body = req.body || {};
-    const schoolId = String(body.school_id || '').trim();
-    if (!schoolId) return res.status(400).json({ error: 'school_id é obrigatório' });
+    const auth = await requireAuthorizedSchoolId(req, body.school_id);
+    if (auth.error) return res.status(auth.status).json({ error: auth.error });
+
+    const { schoolId } = auth;
     try {
         const cfg = await db.upsertReplyConfig(schoolId, {
             bot_name:         String(body.bot_name || 'Alva').trim(),
@@ -1353,11 +1377,14 @@ app.post('/api/social-monitor/reply-config', async (req, res) => {
 
 app.post('/api/social-monitor/ingest', async (req, res) => {
     const body = req.body || {};
-    const schoolId   = String(body.school_id   || '').trim();
     const platform   = String(body.platform    || '').trim().toUpperCase();
     const channel    = String(body.channel     || '').trim().toUpperCase();
     const messageText= String(body.message_text|| '').trim();
-    if (!schoolId || !platform || !channel || !messageText) {
+    const auth = await requireAuthorizedSchoolId(req, body.school_id);
+    if (auth.error) return res.status(auth.status).json({ error: auth.error });
+
+    const { schoolId } = auth;
+    if (!platform || !channel || !messageText) {
         return res.status(400).json({ error: 'Campos obrigatórios: school_id, platform, channel, message_text' });
     }
 
@@ -1410,13 +1437,17 @@ app.post('/api/social-monitor/messages/:id/manual-action', async (req, res) => {
     const id     = String(req.params.id || '').trim();
     const body   = req.body || {};
     const action = String(body.action || '').toUpperCase();
+    const auth = await requireAuthorizedSchoolId(req, body.school_id);
+    if (auth.error) return res.status(auth.status).json({ error: auth.error });
+
+    const { schoolId } = auth;
 
     const statusMap = { REPLY: 'RESOLVED', DISMISS: 'DISMISSED', IN_PROGRESS: 'MANUAL_IN_PROGRESS', RESOLVE: 'RESOLVED' };
     if (!statusMap[action]) return res.status(400).json({ error: 'Ação inválida (use REPLY | DISMISS | IN_PROGRESS | RESOLVE)' });
     if (action === 'REPLY' && !String(body.reply_text || '').trim()) return res.status(400).json({ error: 'reply_text é obrigatório' });
 
     try {
-        const message = await db.updateMessage(id, {
+        const message = await db.updateMessageForSchool(id, schoolId, {
             status:            statusMap[action],
             manual_reply_text: action === 'REPLY' ? String(body.reply_text).trim() : null
         });

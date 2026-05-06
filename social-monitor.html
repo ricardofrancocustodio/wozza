@@ -1066,7 +1066,6 @@ $(document).ready(async function() {
     if (oauthOk) {
         // Limpar query string sem reload
         history.replaceState({}, '', window.location.pathname);
-        if (schoolId) sessionStorage.setItem('SCHOOL_ID', schoolId);
         Swal.fire({
             icon: 'success',
             title: 'Conectado!',
