@@ -5,6 +5,8 @@
     configs: []
 };
 
+const POST_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+
 function escapeHtml(value) {
     return String(value || '')
         .replace(/&/g, '&amp;')
@@ -573,8 +575,78 @@ function renderPostResult(resultado) {
     card.show();
 }
 
+function setPostUploadStatus(message, tone) {
+    const el = $('#sm-post-upload-status');
+    if (!message) {
+        el.hide().removeClass('text-danger text-success text-muted').empty();
+        return;
+    }
+    const toneClass = tone === 'error' ? 'text-danger' : tone === 'success' ? 'text-success' : 'text-muted';
+    el.removeClass('text-danger text-success text-muted').addClass(toneClass).text(message).show();
+}
+
+function setPostImagePreview(url) {
+    const wrap = $('#sm-post-upload-preview');
+    const img = $('#sm-post-upload-preview-img');
+    if (!url) {
+        img.attr('src', '');
+        wrap.hide();
+        return;
+    }
+    img.attr('src', url);
+    wrap.show();
+}
+
+function resetPostImageUploadUi() {
+    $('#sm-post-image-file').val('');
+    $('#sm-post-image-url').val('');
+    setPostUploadStatus('', 'muted');
+    setPostImagePreview('');
+}
+
+function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Não foi possível ler o arquivo selecionado.'));
+        reader.readAsDataURL(file);
+    });
+}
+
+async function uploadSelectedPostImage(file) {
+    if (!file) return;
+    if (!/^image\//i.test(file.type || '')) {
+        throw new Error('Selecione um arquivo de imagem válido.');
+    }
+    if (file.size > POST_IMAGE_MAX_BYTES) {
+        throw new Error('A imagem excede o limite de 8 MB.');
+    }
+
+    setPostUploadStatus('Enviando imagem...', 'muted');
+    const dataUrl = await readFileAsDataUrl(file);
+    const res = await fetch('/api/social/upload-image', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-school-id': socialState.schoolId
+        },
+        body: JSON.stringify({
+            school_id: socialState.schoolId,
+            file_name: file.name,
+            data_url: dataUrl
+        })
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body?.error || 'Falha ao enviar imagem.');
+
+    $('#sm-post-image-url').val(body.url || '');
+    setPostImagePreview(body.url || '');
+    setPostUploadStatus('Imagem enviada com sucesso. A URL pública foi preenchida automaticamente.', 'success');
+}
+
 async function publicarNasRedes() {
     const texto = String($('#sm-post-text').val() || '').trim();
+    const imageUrl = String($('#sm-post-image-url').val() || '').trim();
     if (!texto) {
         Swal.fire('Atenção', 'Escreva o texto da postagem antes de publicar.', 'warning');
         return;
@@ -586,6 +658,11 @@ async function publicarNasRedes() {
 
     if (!destinos.length) {
         Swal.fire('Atenção', 'Selecione ao menos uma rede social para publicar.', 'warning');
+        return;
+    }
+
+    if (destinos.includes('INSTAGRAM') && !imageUrl) {
+        Swal.fire('Atenção', 'Para publicar no Instagram, envie uma imagem antes de continuar.', 'warning');
         return;
     }
 
@@ -601,7 +678,10 @@ async function publicarNasRedes() {
             },
             body: JSON.stringify({
                 school_id: socialState.schoolId,
-                conteudo: { text: texto },
+                conteudo: {
+                    text: texto,
+                    media: imageUrl ? { image_url: imageUrl, url: imageUrl, type: 'IMAGE' } : null
+                },
                 destinos
             })
         });
@@ -609,6 +689,16 @@ async function publicarNasRedes() {
         if (!res.ok) throw new Error(body?.error || 'Falha ao publicar.');
 
         renderPostResult(body.resultado || {});
+
+        if (body.post) {
+            $('#sm-post-text').val('');
+            $('#sm-post-image-url').val('');
+            $('#sm-post-char-count').text('0');
+            resetPostImageUploadUi();
+            await feedFetchMonth(calState.viewYear, calState.viewMonth);
+            feedRender();
+            calRenderMonth();
+        }
     } catch (err) {
         console.error(err);
         Swal.fire('Erro', err.message || 'Não foi possível publicar nas redes.', 'error');
@@ -1586,6 +1676,22 @@ $(document).ready(async function() {
     $('#sm-post-submit-btn').on('click', publicarNasRedes);
     $('#sm-post-text').on('input', function() {
         $('#sm-post-char-count').text($(this).val().length);
+    });
+    $('#sm-post-image-file').on('change', async function() {
+        const file = this.files && this.files[0] ? this.files[0] : null;
+        if (!file) {
+            resetPostImageUploadUi();
+            return;
+        }
+        try {
+            await uploadSelectedPostImage(file);
+        } catch (err) {
+            console.error(err);
+            $('#sm-post-image-url').val('');
+            setPostUploadStatus(err.message || 'Falha ao enviar imagem.', 'error');
+            setPostImagePreview('');
+            Swal.fire('Erro', err.message || 'Não foi possível enviar a imagem.', 'error');
+        }
     });
     $('#sm-config-save-btn').on('click', saveConnectorConfig);
     $('#sm-reply-config-save-btn').on('click', saveReplyConfig);

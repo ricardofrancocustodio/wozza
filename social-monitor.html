@@ -109,6 +109,26 @@
         .alert-badge.high { background: #f8d7da; color: #721c24; }
         .alert-badge.medium { background: #fff3cd; color: #856404; }
         .alert-badge.low { background: #d1ecf1; color: #0c5460; }
+        .sm-post-upload-status {
+            font-size: 12px;
+            margin-top: 8px;
+            display: none;
+        }
+        .sm-post-upload-preview {
+            display: none;
+            margin-top: 12px;
+            border: 1px solid #d8e4ea;
+            border-radius: 12px;
+            padding: 8px;
+            background: #fbfcfe;
+        }
+        .sm-post-upload-preview img {
+            width: 100%;
+            max-height: 260px;
+            object-fit: cover;
+            border-radius: 10px;
+            display: block;
+        }
         .table td, .table th { vertical-align: middle; }
         .text-break-safe { white-space: pre-wrap; word-break: break-word; }
         .empty-card {
@@ -554,6 +574,16 @@
                                         <textarea id="sm-post-text" class="form-control" rows="6" maxlength="2200" placeholder="Escreva aqui o texto que será publicado nas redes selecionadas..."></textarea>
                                         <small class="text-muted"><span id="sm-post-char-count">0</span>/2200 caracteres</small>
                                     </div>
+                                    <div class="form-group">
+                                        <label for="sm-post-image-file">Imagem da postagem</label>
+                                        <input id="sm-post-image-url" type="hidden">
+                                        <input id="sm-post-image-file" type="file" class="form-control-file" accept="image/png,image/jpeg,image/webp">
+                                        <small class="text-muted d-block">Formatos aceitos: JPG, PNG e WEBP. Limite de 8 MB. O envio do arquivo requer `BLOB_READ_WRITE_TOKEN` configurado no ambiente.</small>
+                                        <div id="sm-post-upload-status" class="sm-post-upload-status text-muted"></div>
+                                        <div id="sm-post-upload-preview" class="sm-post-upload-preview">
+                                            <img id="sm-post-upload-preview-img" alt="Prévia da imagem selecionada">
+                                        </div>
+                                    </div>
                                     <div class="form-group mb-4">
                                         <label class="d-block font-weight-bold">Publicar em</label>
                                         <div id="sm-post-networks" class="d-flex flex-wrap mt-1" style="gap:.75rem;">
@@ -578,7 +608,8 @@
                                 <div class="card-body py-3">
                                     <div class="small font-weight-bold mb-2"><i class="fas fa-info-circle mr-1 text-info"></i>Como funciona</div>
                                     <ul class="small text-muted pl-3 mb-0">
-                                        <li>O texto é enviado simultaneamente para as redes marcadas.</li>
+                                        <li>O Instagram já usa publicação real via Meta Graph API.</li>
+                                        <li>Nesta fase, o Instagram exige uma imagem enviada por arquivo, que o Wozza sobe para Blob antes de publicar.</li>
                                         <li>Falhas em uma rede não bloqueiam as demais.</li>
                                         <li>O resultado por rede aparece ao lado após o envio.</li>
                                         <li>Redes sem integração real retornam aviso de <em>não implementado</em>.</li>

@@ -458,8 +458,19 @@ async function upsertReplyConfig(schoolId, fields) {
 
 async function insertPost(post) {
     const rows = await sql`
-        INSERT INTO social_posts (id, school_id, post_text, content, media, results)
-        VALUES (gen_random_uuid()::text, ${post.school_id}, ${post.text}, ${post.text}, ${JSON.stringify(post.media || null)}, ${JSON.stringify(post.results || [])})
+        INSERT INTO social_posts (
+            id, school_id, platform, external_id, post_text, content, media, results,
+            published_at, media_url, thumbnail_url, permalink, media_type,
+            like_count, comments_count, account_username, account_avatar, synced_at
+        )
+        VALUES (
+            gen_random_uuid()::text,
+            ${post.school_id}, ${post.platform || null}, ${post.external_id || null}, ${post.text}, ${post.content || post.text},
+            ${JSON.stringify(post.media || null)}, ${JSON.stringify(post.results || [])},
+            ${post.published_at || new Date().toISOString()}::timestamptz, ${post.media_url || null}, ${post.thumbnail_url || null},
+            ${post.permalink || null}, ${post.media_type || null}, ${post.like_count || 0}, ${post.comments_count || 0},
+            ${post.account_username || null}, ${post.account_avatar || null}, ${post.platform ? new Date().toISOString() : null}::timestamptz
+        )
         RETURNING *
     `;
     return rows[0];

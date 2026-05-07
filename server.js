@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
+const { put } = require('@vercel/blob');
 const db = require('./db');
 
 const app = express();
@@ -12,7 +13,7 @@ function env(name) {
     return String(process.env[name] || '').trim();
 }
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '12mb' }));
 app.use(express.urlencoded({ extended: false }));
 
 // Servir arquivos estáticos
@@ -39,6 +40,8 @@ app.use(async (_req, res, next) => {
 
 const ALL_CHANNELS = ['DIRECT', 'POST_COMMENT', 'REEL_COMMENT', 'STORY_MENTION', 'PAGE_MESSAGE'];
 const META_GRAPH_BASE = 'https://graph.facebook.com/v19.0';
+const BLOB_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const SUPPORTED_UPLOAD_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 function classifyMessage(text) {
     const t = String(text || '').toLowerCase();
@@ -232,6 +235,57 @@ function normalizeFacebookPost(raw, schoolId, metadata) {
     };
 }
 
+function blobUploadsEnabled() {
+    return !!env('BLOB_READ_WRITE_TOKEN');
+}
+
+function imageExtensionFromMimeType(mimeType) {
+    const normalized = String(mimeType || '').toLowerCase();
+    if (normalized === 'image/jpeg') return '.jpg';
+    if (normalized === 'image/png') return '.png';
+    if (normalized === 'image/webp') return '.webp';
+    return '';
+}
+
+function parseBase64ImageUpload(dataUrl) {
+    const match = String(dataUrl || '').match(/^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=\r\n]+)$/i);
+    if (!match) throw new Error('Arquivo enviado em formato inválido.');
+
+    const mimeType = String(match[1] || '').toLowerCase();
+    if (!SUPPORTED_UPLOAD_IMAGE_MIME_TYPES.has(mimeType)) {
+        throw new Error('Formato de imagem não suportado. Use JPG, PNG ou WEBP.');
+    }
+
+    const buffer = Buffer.from(String(match[2] || '').replace(/\s+/g, ''), 'base64');
+    if (!buffer.length) throw new Error('Arquivo de imagem vazio.');
+    if (buffer.length > BLOB_MAX_IMAGE_BYTES) {
+        throw new Error('A imagem excede o limite de 8 MB.');
+    }
+
+    return { mimeType, buffer };
+}
+
+async function uploadImageToBlob({ schoolId, fileName, dataUrl }) {
+    if (!blobUploadsEnabled()) {
+        throw new Error('Upload de arquivo não configurado no ambiente. Defina BLOB_READ_WRITE_TOKEN para habilitar.');
+    }
+
+    const { mimeType, buffer } = parseBase64ImageUpload(dataUrl);
+    const safeBaseName = String(fileName || 'imagem')
+        .replace(/\.[^.]+$/, '')
+        .replace(/[^a-zA-Z0-9_-]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 60) || 'imagem';
+    const pathname = `social-posts/${schoolId}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}-${safeBaseName}${imageExtensionFromMimeType(mimeType)}`;
+
+    return put(pathname, buffer, {
+        access: 'public',
+        contentType: mimeType,
+        token: env('BLOB_READ_WRITE_TOKEN')
+    });
+}
+
 async function tryFetchInstagramBusinessId(pageId, accessToken) {
     try {
         const res = await fetchMeta(`${pageId}`, accessToken, {
@@ -319,6 +373,73 @@ async function syncMetaPosts(schoolId, platform) {
         }
     }
     return { results, warnings, synced: results.reduce((total, item) => total + (item.synced || 0), 0) };
+}
+
+function isPublicHttpUrl(value) {
+    try {
+        const parsed = new URL(String(value || '').trim());
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch {
+        return false;
+    }
+}
+
+async function postMetaForm(pathname, fields) {
+    return fetchJson(`${META_GRAPH_BASE}/${pathname.replace(/^\//, '')}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(fields)
+    });
+}
+
+async function publishInstagramImage(config, caption, imageUrl) {
+    if (!config?.credentials_encrypted) throw new Error('Credenciais do Instagram não encontradas para este canal');
+
+    const metadata = config.metadata || {};
+    const instagramBusinessId = String(metadata.instagram_business_id || '').trim();
+    if (!instagramBusinessId) {
+        throw new Error('Conta Instagram Business não encontrada. Reconecte o canal do Instagram antes de publicar.');
+    }
+
+    const credentials = decryptSocialCredentials(config.credentials_encrypted);
+    const accessToken = credentials.page_access_token || credentials.access_token;
+    if (!accessToken) throw new Error('Token do Instagram não encontrado');
+
+    const createRes = await postMetaForm(`/${instagramBusinessId}/media`, {
+        image_url: imageUrl,
+        caption,
+        access_token: accessToken
+    });
+    if (!createRes.ok || !createRes.data?.id) {
+        throw new Error(createRes.data?.error?.message || 'Falha ao criar contêiner de mídia no Instagram');
+    }
+
+    const publishRes = await postMetaForm(`/${instagramBusinessId}/media_publish`, {
+        creation_id: String(createRes.data.id),
+        access_token: accessToken
+    });
+    if (!publishRes.ok || !publishRes.data?.id) {
+        throw new Error(publishRes.data?.error?.message || 'Falha ao publicar mídia no Instagram');
+    }
+
+    const mediaId = String(publishRes.data.id);
+    const mediaRes = await fetchMeta(`/${mediaId}`, accessToken, {
+        fields: 'id,caption,media_type,media_url,permalink,timestamp,username,thumbnail_url'
+    });
+    if (!mediaRes.ok || !mediaRes.data?.id) {
+        throw new Error(mediaRes.data?.error?.message || 'Falha ao buscar detalhes da publicação no Instagram');
+    }
+
+    return {
+        id: mediaId,
+        caption: mediaRes.data.caption || caption,
+        media_type: mediaRes.data.media_type || 'IMAGE',
+        media_url: mediaRes.data.media_url || imageUrl,
+        thumbnail_url: mediaRes.data.thumbnail_url || mediaRes.data.media_url || imageUrl,
+        permalink: mediaRes.data.permalink || null,
+        timestamp: mediaRes.data.timestamp || new Date().toISOString(),
+        username: mediaRes.data.username || metadata.page_name || 'Instagram'
+    };
 }
 
 // ─── App auth helpers ────────────────────────────────────────────────────────
@@ -1468,26 +1589,121 @@ app.post('/api/social-monitor/messages/:id/manual-action', async (req, res) => {
 // ─── API: Postagens ───────────────────────────────────────────────────────────
 
 app.post('/api/social/post-multi', async (req, res) => {
-    const body     = req.body || {};
-    const schoolId = String(body.school_id  || '').trim();
-    const conteudo = body.conteudo || {};
-    const destinos = Array.isArray(body.destinos) ? body.destinos : [];
-    if (!schoolId || !conteudo.text || !destinos.length) {
-        return res.status(400).json({ error: 'school_id, conteudo.text e destinos são obrigatórios' });
-    }
-
-    const resultado = {};
-    const results = destinos.map((rede) => {
-        const externalId = `mock-${rede.toLowerCase()}-${crypto.randomBytes(4).toString('hex')}`;
-        resultado[rede] = { success: true, externalId };
-        return { network: rede, externalId, success: true };
-    });
-
     try {
-        const post = await db.insertPost({ school_id: schoolId, text: conteudo.text, media: conteudo.media || null, results });
+        const user = await requireCurrentUser(req);
+        if (!user) return res.status(401).json({ error: 'Não autenticado' });
+
+        const body = req.body || {};
+        const schoolId = String(body.school_id || user.school_id || '').trim();
+        const conteudo = body.conteudo || {};
+        const destinos = Array.isArray(body.destinos)
+            ? body.destinos.map((item) => String(item || '').trim().toUpperCase()).filter(Boolean)
+            : [];
+        const text = String(conteudo.text || '').trim();
+        const imageUrl = String(conteudo?.media?.image_url || conteudo?.media?.url || '').trim();
+
+        if (!schoolId || !text || !destinos.length) {
+            return res.status(400).json({ error: 'school_id, conteudo.text e destinos são obrigatórios' });
+        }
+        if (schoolId !== user.school_id) {
+            return res.status(403).json({ error: 'school_id não pertence ao usuário autenticado' });
+        }
+        if (destinos.includes('INSTAGRAM') && !imageUrl) {
+            return res.status(400).json({ error: 'Para publicar no Instagram, informe uma URL pública da imagem.' });
+        }
+        if (imageUrl && !isPublicHttpUrl(imageUrl)) {
+            return res.status(400).json({ error: 'A imagem precisa ser uma URL pública HTTP/HTTPS.' });
+        }
+
+        const resultado = {};
+        const results = [];
+        let instagramPublishedPost = null;
+
+        for (const rede of destinos) {
+            if (rede === 'INSTAGRAM') {
+                try {
+                    const config = await db.getConfig(schoolId, 'INSTAGRAM');
+                    if (!config || String(config.connection_status || '').toUpperCase() !== 'CONNECTED' || !config.enabled) {
+                        throw new Error('Canal do Instagram não está conectado e habilitado.');
+                    }
+
+                    const published = await publishInstagramImage(config, text, imageUrl);
+                    resultado[rede] = { success: true, externalId: published.id, permalink: published.permalink || null };
+                    results.unshift({ platform: rede, externalId: published.id, success: true, source: 'publish' });
+                    instagramPublishedPost = { config, published };
+                } catch (err) {
+                    resultado[rede] = { success: false, error: err.message };
+                    results.unshift({ platform: rede, success: false, error: err.message, source: 'publish' });
+                }
+                continue;
+            }
+
+            const error = `Publicação real ainda não implementada para ${rede}.`;
+            resultado[rede] = { success: false, error };
+            results.push({ platform: rede, success: false, error, source: 'publish' });
+        }
+
+        let post = null;
+        if (instagramPublishedPost) {
+            const metadata = instagramPublishedPost.config.metadata || {};
+            const published = instagramPublishedPost.published;
+            post = await db.upsertSyncedPost({
+                school_id: schoolId,
+                platform: 'INSTAGRAM',
+                external_id: published.id,
+                content: published.caption || text,
+                media_url: published.media_url || imageUrl,
+                thumbnail_url: published.thumbnail_url || published.media_url || imageUrl,
+                permalink: published.permalink || null,
+                media_type: published.media_type || 'IMAGE',
+                like_count: 0,
+                comments_count: 0,
+                account_username: published.username || metadata.page_name || 'Instagram',
+                account_avatar: null,
+                published_at: published.timestamp || new Date().toISOString(),
+                media: {
+                    url: published.media_url || imageUrl,
+                    thumbnail_url: published.thumbnail_url || published.media_url || imageUrl,
+                    type: published.media_type || 'IMAGE'
+                },
+                results
+            });
+        }
+
         return res.json({ resultado, post });
     } catch (err) {
         return res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/social/upload-image', async (req, res) => {
+    try {
+        const user = await requireCurrentUser(req);
+        if (!user) return res.status(401).json({ error: 'Não autenticado' });
+
+        const body = req.body || {};
+        const schoolId = String(body.school_id || user.school_id || '').trim();
+        const fileName = String(body.file_name || '').trim();
+        const dataUrl = String(body.data_url || '').trim();
+
+        if (!schoolId || schoolId !== user.school_id) {
+            return res.status(403).json({ error: 'school_id não pertence ao usuário autenticado' });
+        }
+        if (!dataUrl) {
+            return res.status(400).json({ error: 'data_url é obrigatório' });
+        }
+
+        const uploaded = await uploadImageToBlob({ schoolId, fileName, dataUrl });
+        return res.json({
+            ok: true,
+            url: uploaded.url,
+            pathname: uploaded.pathname,
+            downloadUrl: uploaded.downloadUrl || null
+        });
+    } catch (err) {
+        const message = err.message || 'Falha ao enviar imagem';
+        const status = /não configurado/i.test(message) ? 503 : 400;
+        return res.status(status).json({ error: message });
     }
 });
 
