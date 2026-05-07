@@ -613,6 +613,31 @@ function readFileAsDataUrl(file) {
     });
 }
 
+function compressImageToDataUrl(file, maxPx, quality) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Não foi possível ler o arquivo selecionado.'));
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onerror = () => reject(new Error('Não foi possível decodificar a imagem.'));
+            img.onload = () => {
+                let { width, height } = img;
+                if (width > maxPx || height > maxPx) {
+                    if (width >= height) { height = Math.round(height * maxPx / width); width = maxPx; }
+                    else { width = Math.round(width * maxPx / height); height = maxPx; }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
 async function uploadSelectedPostImage(file) {
     if (!file) return;
     if (!/^image\//i.test(file.type || '')) {
@@ -622,8 +647,9 @@ async function uploadSelectedPostImage(file) {
         throw new Error('A imagem excede o limite de 8 MB.');
     }
 
+    setPostUploadStatus('Comprimindo imagem...', 'muted');
+    const dataUrl = await compressImageToDataUrl(file, 1080, 0.85);
     setPostUploadStatus('Enviando imagem...', 'muted');
-    const dataUrl = await readFileAsDataUrl(file);
     const res = await fetch('/api/social/upload-image', {
         method: 'POST',
         headers: {
