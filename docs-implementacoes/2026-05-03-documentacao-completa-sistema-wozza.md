@@ -1,18 +1,20 @@
 # Documentacao completa do sistema Wozza
 
 ## Data
-2026-05-03
+
+Criado em 2026-05-03. Ultima atualizacao: 2026-05-07.
 
 ## Visao geral
 
-O Wozza e uma aplicacao web em Node.js/Express voltada para operacao social de empresas e escolas, com foco em:
+O Wozza e uma aplicacao web em Node.js/Express voltada para operacao social de empresas, com foco em:
 
 - autenticacao do usuario no painel;
 - escolha de plano e trial inicial;
 - onboarding para conectar canais sociais;
 - monitoramento de mensagens e alertas sociais;
 - calendario/feed de postagens por canal;
-- base pronta para evoluir para publicacao real, replies reais e cobranca integrada.
+- publicacao real no Instagram via Meta Graph API;
+- base pronta para evoluir para publicacao nas demais redes, replies reais e cobranca integrada.
 
 Hoje o projeto roda com frontend HTML estatico, backend unico em `server.js`, persistencia em Neon/PostgreSQL via `db.js` e deploy em Vercel.
 
@@ -66,6 +68,8 @@ Hoje o projeto roda com frontend HTML estatico, backend unico em `server.js`, pe
 - `onboarding.html`: onboarding inicial apos ativacao do trial
 - `billing.html`: status de assinatura e trial
 - `social-monitor.html`: monitor social, conectores e feed/calendario
+- `select-facebook-page.html`: selecao de pagina Facebook apos OAuth Meta
+- `connect-system-user.html`: fluxo alternativo de conexao via System User Token Meta
 - `privacy-policy.html`: politica de privacidade publica
 - `terms-of-service.html`: termos de uso publicos
 - `privacy-portal.html`: portal de privacidade
@@ -73,8 +77,7 @@ Hoje o projeto roda com frontend HTML estatico, backend unico em `server.js`, pe
 ### Scripts frontend
 
 - `public/dist/js/session.js`: validacao de sessao, redirect por billing e banner de trial
-- `public/dist/js/social/social-monitor.js`: UI do monitor social, conectores, feed e interacoes
-- `public/js/supabaseConfig.js`: arquivo legado presente na estrutura, sem papel central no fluxo atual
+- `public/dist/js/social/social-monitor.js`: UI do monitor social, conectores, feed, upload de imagem e publicacao
 
 ### Documentacao existente
 
@@ -82,6 +85,9 @@ Hoje o projeto roda com frontend HTML estatico, backend unico em `server.js`, pe
 - `docs-implementacoes/2026-05-03-login-auth-wozza.md`
 - `docs-implementacoes/2026-05-03-billing-fase1-fundacao.md`
 - `docs-implementacoes/2026-05-03-plano-implementacao-planos-trial-onboarding.md`
+- `docs-implementacoes/2026-05-04-publicacao-instagram-fase1.md`
+- `docs-implementacoes/2026-05-04-publicacao-instagram-upload-blob.md`
+- `docs-implementacoes/2026-05-06-corrige-isolamento-mensagens-monitor-social.md`
 - este arquivo consolida a documentacao do sistema como um todo
 
 ## Como a aplicacao inicializa
@@ -124,6 +130,10 @@ No ambiente serverless da Vercel, a aplicacao:
 - `META_APP_SECRET`
 - `META_SCOPES`: opcional; sobrescreve os scopes Meta padrao
 - `ENCRYPTION_KEY`: chave usada para cifrar credenciais sociais no banco
+
+### Storage de imagens
+
+- `BLOB_READ_WRITE_TOKEN`: token do Vercel Blob; obrigatorio para upload de imagens antes de publicar no Instagram
 
 ### Resend / emails transacionais
 
@@ -234,7 +244,7 @@ Campos relevantes:
 - `connection_status`
 - `account_label`
 - `allowed_channels`
-- `metadata`
+- `metadata` (inclui `instagram_business_id`, `page_id`, `page_name`)
 - `credentials_present`
 - `credentials_encrypted`
 
@@ -305,8 +315,8 @@ Fluxo:
 
 Atualmente suportado:
 
-- Google
-- Facebook
+- Google (OAuth backend)
+- Facebook (via Facebook SDK JavaScript — `POST /api/auth/facebook/login-sdk`)
 
 Objetivo desse OAuth:
 
@@ -353,13 +363,14 @@ Rotas:
 
 - `GET /auth/meta/start`
 - `GET /auth/meta/callback`
+- `POST /api/auth/meta/select-page`
 
 Comportamento atual:
 
 - usa scopes Meta business por padrao;
 - aceita override por `META_SCOPES`;
 - cifra token com `ENCRYPTION_KEY`;
-- busca paginas e conta Instagram Business;
+- busca paginas e conta Instagram Business via Graph API;
 - grava `credentials_encrypted` e `metadata` em `social_channel_configs`;
 - dispara sincronizacao inicial de posts.
 
@@ -370,6 +381,20 @@ Scopes padrao atuais:
 - `instagram_business_manage_comments`
 - `pages_show_list`
 - `business_management`
+- `pages_manage_posts`
+- `pages_read_engagement`
+- `instagram_business_search`
+
+## System User Token Meta (alternativa ao OAuth)
+
+Rotas:
+
+- `GET /connect-system-user` (pagina)
+- `POST /api/auth/system-user/validate`
+- `POST /api/auth/system-user/connect`
+
+Fluxo alternativo para conectar o Instagram/Facebook Business sem OAuth interativo,
+usando credenciais de System User do Meta Business Manager.
 
 ## OAuth TikTok
 
@@ -433,21 +458,24 @@ E toma decisoes como:
 
 Rotas:
 
-- `POST /api/social/post-multi`
-- `POST /api/social/sync-posts`
-- `GET /api/social/posts`
-- `GET /api/social/posts/:postId/interactions`
-- `POST /api/social/comments/:commentId/reply`
-- `POST /api/social/posts/:externalId/caption`
-- `DELETE /api/social/posts/:externalId`
+- `POST /api/social/post-multi` — publica em multiplas redes; Instagram implementado e funcional
+- `POST /api/social/upload-image` — faz upload de imagem para Vercel Blob, retorna URL publica
+- `POST /api/social/sync-posts` — sincroniza posts ja publicados do Meta
+- `GET /api/social/posts` — lista posts sincronizados por data range
+- `GET /api/social/posts/:postId/interactions` — retorna interacoes (stub)
+- `POST /api/social/comments/:commentId/reply` — responde comentario (stub)
+- `POST /api/social/posts/:externalId/caption` — edita legenda (stub)
+- `DELETE /api/social/posts/:externalId` — deleta post (stub)
 
 Estado atual:
 
 - `GET /api/social/posts` ja entrega dados do feed/calendario;
 - `POST /api/social/sync-posts` executa sincronizacao manual de posts Meta conectados;
 - sincronizacao inicial Meta ja popula `social_posts`;
-- publicacao multirrede ainda usa fluxo parcial/mock para algumas operacoes;
-- interacoes, edicao de legenda, exclusao e replies ainda nao estao completos em todas as plataformas.
+- **publicacao no Instagram: implementada e funcional** — cria container de midia, publica e salva em `social_posts`;
+- upload de imagem via `POST /api/social/upload-image`: aceita JPG/PNG/WEBP ate 8MB, sobe para Vercel Blob, retorna URL publica;
+- publicacao em Facebook, TikTok, LinkedIn: stubs, nao implementado;
+- interacoes, edicao de legenda, exclusao e replies: stubs em todas as plataformas.
 
 ## Paginas publicas e protegidas
 
@@ -484,8 +512,9 @@ Observacao:
 - `POST /api/auth/first-password`
 - `POST /api/auth/reset-password`
 - `GET /api/auth/social/status`
+- `POST /api/auth/facebook/login-sdk`
 
-## OAuth
+## OAuth e conexao Meta
 
 - `GET /auth/google/start`
 - `GET /auth/google/callback`
@@ -493,6 +522,10 @@ Observacao:
 - `GET /auth/facebook/callback`
 - `GET /auth/meta/start`
 - `GET /auth/meta/callback`
+- `POST /api/auth/meta/select-page`
+- `POST /api/auth/system-user/validate`
+- `POST /api/auth/system-user/connect`
+- `POST /api/social/refresh-instagram-id`
 - `GET /auth/tiktok/start`
 - `GET /auth/tiktok/callback`
 - `GET /auth/linkedin/start`
@@ -517,6 +550,7 @@ Observacao:
 - `POST /api/social-monitor/ingest`
 - `POST /api/social-monitor/messages/:id/manual-action`
 - `POST /api/social/post-multi`
+- `POST /api/social/upload-image`
 - `POST /api/social/sync-posts`
 - `GET /api/social/posts`
 - `GET /api/social/posts/:postId/interactions`
@@ -543,6 +577,8 @@ Estado atual dos webhooks:
 - sanitizacao de variaveis de ambiente OAuth com `trim()`
 - fallback de `redirect_uri` para o host real da requisicao em producao
 - inicializacao do schema antes de atender rotas dinamicas serverless
+- limite de payload JSON aumentado para 12MB para suportar upload de imagens em base64
+- imagens validadas (tipo MIME + tamanho) antes de enviar ao Vercel Blob
 
 ## Estado atual por modulo
 
@@ -551,22 +587,26 @@ Estado atual dos webhooks:
 - login por e-mail/senha
 - primeira senha
 - reset de senha
-- login social do painel
+- login social do painel (Google + Facebook SDK)
 - billing Fase 1
 - onboarding inicial
-- paginas legais
-- sincronizacao inicial de posts Meta
+- paginas legais (com redirect 301 para URLs sem .html)
+- sincronizacao inicial e manual de posts Meta
+- **publicacao real no Instagram via Meta Graph API**
+- upload de imagem para Vercel Blob
 
 ## Parcial
 
+- conexao Meta via System User Token
 - conexao operacional TikTok
 - conexao operacional LinkedIn
-- publicacao multirrede real
-- replies reais e edicao de legenda
 - webhooks sociais reais
 
 ## Nao implementado completamente
 
+- publicacao real no Facebook, TikTok e LinkedIn
+- replies e interacoes reais por plataforma
+- edicao de legenda e exclusao de post
 - cobranca com Stripe/Mercado Pago/Pagar.me
 - webhook de billing
 - portal de cobranca
@@ -609,7 +649,7 @@ Fluxo atual de deploy:
 2. validar localmente;
 3. commitar em `main`;
 4. `git push origin main`;
-5. Vercel faz deploy;
+5. Vercel faz deploy automaticamente;
 6. validar rota publica e APIs basicas.
 
 ## Principais testes uteis
@@ -621,16 +661,18 @@ Fluxo atual de deploy:
 
 ## Limitacoes e atencoes atuais
 
-- o sistema ainda usa `school_id` como chave logica principal no monitor social; a migracao para `account_id` ainda e futura
+- o sistema ainda usa `school_id` como chave logica principal no monitor social
 - o app depende de configuracao correta no Meta Developers para OAuth e scopes
 - publicacao real, replies e webhooks ainda nao estao completos em todas as plataformas
+- `BLOB_READ_WRITE_TOKEN` ausente impede upload de imagens e bloqueia publicacao no Instagram
 - `RESEND_API_KEY` ausente faz o sistema cair em modo de envio simulado/log em ambiente nao-producao
 - a pasta `.env` e secrets nunca devem ser versionados
 
 ## Proximos passos recomendados
 
-1. concluir o fluxo real de conexao Meta em producao com as permissoes business corretas
+1. implementar publicacao real no Facebook via Meta Graph API (credenciais ja disponiveis)
 2. implementar replies e interacoes reais por plataforma
-3. proteger operacoes sociais com middleware de entitlement por assinatura
-4. integrar provedor de pagamento e webhook
-5. consolidar migracao de `school_id` para `account_id`
+3. concluir conexao operacional TikTok e LinkedIn
+4. implementar webhooks reais para receber eventos de cada rede
+5. proteger operacoes sociais com middleware de entitlement por assinatura
+6. integrar provedor de pagamento e webhook
