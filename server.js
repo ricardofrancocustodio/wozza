@@ -786,8 +786,11 @@ app.get('/auth/facebook/callback', async (req, res) => {
 
 const DEFAULT_META_SCOPES = [
     'instagram_basic',
+    'instagram_content_publish',
     'instagram_manage_comments',
+    'instagram_manage_messages',
     'pages_show_list',
+    'pages_read_engagement',
     'business_management'
 ].join(',');
 
