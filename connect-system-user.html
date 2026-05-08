@@ -60,6 +60,20 @@
         .page-item .ig-ok { color: #28a745; font-weight: 600; }
         .page-item .ig-no { color: #dc3545; font-weight: 600; }
     </style>
+    <script>
+        (function () {
+            try {
+                var stored = localStorage.getItem('wozza-theme');
+                var theme = (stored === 'dark' || stored === 'light')
+                    ? stored
+                    : ((window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+            } catch (err) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
+    <link rel="stylesheet" href="/dist/css/theme.css">
 </head>
 <body>
 <div class="container-narrow">
@@ -250,5 +264,6 @@
         }
     };
 </script>
+    <script src="/dist/js/theme.js"></script>
 </body>
 </html>

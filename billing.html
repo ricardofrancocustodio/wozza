@@ -6,6 +6,20 @@
     <title>Wozza | Minha Assinatura</title>
     <link rel="stylesheet" href="/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="/adminlte/css/adminlte.min.css">
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('wozza-theme');
+        var theme = (stored === 'dark' || stored === 'light')
+          ? stored
+          : ((window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (err) {
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="/dist/css/theme.css">
 </head>
 <body class="hold-transition sidebar-mini" data-auth="required" data-page="billing">
 <div class="wrapper">
@@ -184,5 +198,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     `;
 });
 </script>
+<script src="/dist/js/theme.js"></script>
 </body>
 </html>

@@ -23,6 +23,20 @@
         footer a { color: #6c757d; }
         footer a:hover { color: #343a40; }
     </style>
+    <script>
+        (function () {
+            try {
+                var stored = localStorage.getItem('wozza-theme');
+                var theme = (stored === 'dark' || stored === 'light')
+                    ? stored
+                    : ((window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+            } catch (err) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
+    <link rel="stylesheet" href="/dist/css/theme.css">
 </head>
 <body data-auth="required">
 
@@ -161,5 +175,6 @@
     });
 }());
 </script>
+<script src="/dist/js/theme.js"></script>
 </body>
 </html>

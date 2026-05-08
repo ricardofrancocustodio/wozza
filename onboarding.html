@@ -15,6 +15,20 @@
         .card-step.highlight { border-color: #667eea; }
         .btn-step { border-radius: 30px; padding: 11px 28px; font-weight: 600; }
     </style>
+    <script>
+        (function () {
+            try {
+                var stored = localStorage.getItem('wozza-theme');
+                var theme = (stored === 'dark' || stored === 'light')
+                    ? stored
+                    : ((window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+            } catch (err) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
+    <link rel="stylesheet" href="/dist/css/theme.css">
 </head>
 <body data-auth="required">
 
@@ -87,5 +101,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 </script>
+<script src="/dist/js/theme.js"></script>
 </body>
 </html>

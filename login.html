@@ -32,6 +32,20 @@
     .hidden { display: none !important; }
     @media (max-width: 900px) { .auth-shell { grid-template-columns: 1fr; } .auth-panel { padding: 32px; gap: 36px; } .auth-copy h1 { font-size: 32px; } }
   </style>
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('wozza-theme');
+        var theme = (stored === 'dark' || stored === 'light')
+          ? stored
+          : ((window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (err) {
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="/dist/css/theme.css">
 </head>
 <body>
   <main class="auth-shell">
@@ -159,5 +173,6 @@
       }
     });
   </script>
+  <script src="/dist/js/theme.js"></script>
 </body>
 </html>

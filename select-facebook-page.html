@@ -14,6 +14,20 @@
         .page-name { font-weight: 600; font-size: 16px; margin: 0; }
         .page-ig { font-size: 13px; color: #666; margin: 4px 0 0 0; }
     </style>
+    <script>
+        (function () {
+            try {
+                var stored = localStorage.getItem('wozza-theme');
+                var theme = (stored === 'dark' || stored === 'light')
+                    ? stored
+                    : ((window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+            } catch (err) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
+    <link rel="stylesheet" href="/dist/css/theme.css">
 </head>
 <body>
 <div class="card" style="max-width: 500px; width: 90%;">
@@ -81,5 +95,6 @@
         }
     }
 </script>
+    <script src="/dist/js/theme.js"></script>
 </body>
 </html>
