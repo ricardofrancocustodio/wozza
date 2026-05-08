@@ -1232,6 +1232,17 @@ app.get('/api/oauth/status', (req, res) => {
     });
 });
 
+app.get('/api/debug/env', (_req, res) => {
+    const token = env('BLOB_READ_WRITE_TOKEN');
+    res.json({
+        BLOB_READ_WRITE_TOKEN_present: !!token,
+        BLOB_READ_WRITE_TOKEN_length: token.length,
+        BLOB_READ_WRITE_TOKEN_prefix: token ? token.slice(0, 12) + '...' : null,
+        node_env: process.env.NODE_ENV || null,
+        vercel_env: process.env.VERCEL_ENV || null
+    });
+});
+
 app.get('/api/debug/config', async (req, res) => {
     try {
         const schoolId = String(req.query.school_id || 'wozza-default-school');
