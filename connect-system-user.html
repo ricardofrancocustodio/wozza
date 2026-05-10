@@ -59,6 +59,23 @@
         .page-item .meta { font-size: 12px; color: #6c757d; margin-top: 4px; }
         .page-item .ig-ok { color: #28a745; font-weight: 600; }
         .page-item .ig-no { color: #dc3545; font-weight: 600; }
+        .platform-choice {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .platform-option {
+            border: 2px solid #d8e4ea;
+            border-radius: 10px;
+            background: #fff;
+            color: #203a43;
+            padding: 12px 14px;
+            font-weight: 700;
+            text-align: left;
+        }
+        .platform-option small { display: block; font-weight: 500; color: #6c757d; margin-top: 3px; }
+        .platform-option.active { border-color: #2c5364; background: #eef7fb; }
+        @media (max-width: 575.98px) { .platform-choice { grid-template-columns: 1fr; } }
     </style>
     <script>
         (function () {
@@ -77,8 +94,24 @@
 </head>
 <body>
 <div class="container-narrow">
-    <h3 class="mb-1"><i class="fab fa-facebook mr-2" style="color:#2c5364;"></i>Conectar Página com Token Permanente</h3>
-    <p class="text-muted mb-4">Use um <strong>System User Token</strong> do Meta Business para conectar de forma permanente, sem expiração.</p>
+    <h3 class="mb-1" id="page-title"><i class="fab fa-facebook mr-2" style="color:#2c5364;"></i>Conectar Facebook com Token Permanente</h3>
+    <p class="text-muted mb-4" id="page-subtitle">Use o mesmo <strong>System User Token</strong> do Meta Business para conectar a página do Facebook de forma permanente, sem expiração.</p>
+
+    <div class="step-card">
+        <div class="step-title"><span class="step-num">0</span>Escolha o canal que será conectado no Wozza</div>
+        <div class="step-body">
+            <div class="platform-choice">
+                <button type="button" class="platform-option" data-target-platform="FACEBOOK">
+                    <i class="fab fa-facebook mr-1"></i>Facebook
+                    <small>Salva esta página como canal Facebook.</small>
+                </button>
+                <button type="button" class="platform-option" data-target-platform="INSTAGRAM">
+                    <i class="fab fa-instagram mr-1"></i>Instagram
+                    <small>Usa o Instagram vinculado a essa página.</small>
+                </button>
+            </div>
+        </div>
+    </div>
 
     <div class="step-card">
         <div class="step-title"><span class="step-num">1</span>Acesse o Meta Business Suite</div>
@@ -118,9 +151,11 @@
                 <li>instagram_basic</li>
                 <li>instagram_manage_comments</li>
                 <li>instagram_manage_insights</li>
+                <li>instagram_content_publish</li>
                 <li>pages_show_list</li>
                 <li>pages_read_engagement</li>
                 <li>pages_read_user_content</li>
+                <li>pages_manage_posts</li>
                 <li>business_management</li>
             </ul>
             <div class="mt-2">Clique <code>Generate Token</code> e copie o token gerado (aparece só uma vez!).</div>
@@ -149,10 +184,40 @@
 
 <script>
     const params = new URLSearchParams(location.search);
-    const platform = (params.get('platform') || 'INSTAGRAM').toUpperCase();
+    const platformLabels = {
+        FACEBOOK: { label: 'Facebook', icon: 'fab fa-facebook', title: 'Conectar Facebook com Token Permanente', subtitle: 'Use o mesmo System User Token do Meta Business para conectar a página do Facebook de forma permanente, sem expiração.' },
+        INSTAGRAM: { label: 'Instagram', icon: 'fab fa-instagram', title: 'Conectar Instagram com Token Permanente', subtitle: 'Use o mesmo System User Token do Meta Business para conectar o Instagram vinculado a uma página do Facebook.' }
+    };
+    let platform = (params.get('platform') || 'FACEBOOK').toUpperCase();
+    if (!platformLabels[platform]) platform = 'FACEBOOK';
     const schoolId = params.get('school_id') || sessionStorage.getItem('SCHOOL_ID') || 'wozza-default-school';
     let validatedToken = null;
+    let validatedPages = [];
     let selectedPageId = null;
+
+    function setPlatform(nextPlatform, updateUrl = true) {
+        platform = platformLabels[nextPlatform] ? nextPlatform : 'FACEBOOK';
+        const info = platformLabels[platform];
+        document.getElementById('page-title').innerHTML = `<i class="${info.icon} mr-2" style="color:#2c5364;"></i>${info.title}`;
+        document.getElementById('page-subtitle').innerHTML = info.subtitle.replace('System User Token', '<strong>System User Token</strong>');
+        document.querySelectorAll('[data-target-platform]').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.targetPlatform === platform);
+        });
+        document.querySelector('#pages-section .step-title').innerHTML = `<span class="step-num">6</span>Selecione a página que deseja conectar como ${info.label}`;
+        document.getElementById('connect-btn').innerHTML = `<i class="fas fa-plug mr-1"></i>Conectar ${info.label}`;
+        if (updateUrl) {
+            const nextParams = new URLSearchParams(location.search);
+            nextParams.set('platform', platform);
+            nextParams.set('school_id', schoolId);
+            history.replaceState({}, '', `${location.pathname}?${nextParams}`);
+        }
+        if (validatedPages.length) renderPages(validatedPages);
+    }
+
+    document.querySelectorAll('[data-target-platform]').forEach(btn => {
+        btn.addEventListener('click', () => setPlatform(btn.dataset.targetPlatform));
+    });
+    setPlatform(platform, false);
 
     document.getElementById('validate-btn').onclick = async () => {
         const token = document.getElementById('token-input').value.trim();
@@ -175,7 +240,8 @@
             if (!data.ok) return Swal.fire('Token Inválido', data.error || 'Verifique se copiou corretamente', 'error');
 
             validatedToken = token;
-            renderPages(data.pages);
+            validatedPages = data.pages || [];
+            renderPages(validatedPages);
         } catch (err) {
             document.getElementById('loading').style.display = 'none';
             document.getElementById('validate-btn').disabled = false;
@@ -194,15 +260,21 @@
         }
 
         container.innerHTML = '';
+        selectedPageId = null;
+        document.getElementById('connect-btn').disabled = true;
         pages.forEach(page => {
             const div = document.createElement('div');
             div.className = 'page-item';
             const igInfo = page.instagram_business_account
-                ? `<span class="ig-ok"><i class="fab fa-instagram mr-1"></i>Instagram: @${page.instagram_business_account.username || page.instagram_business_account.id}</span>`
+                ? `<span class="ig-ok"><i class="fab fa-instagram mr-1"></i>Instagram vinculado: @${page.instagram_business_account.username || page.instagram_business_account.id}</span>`
                 : `<span class="ig-no"><i class="fas fa-times-circle mr-1"></i>Sem Instagram vinculado</span>`;
+            const platformHint = platform === 'FACEBOOK'
+                ? '<span class="text-primary font-weight-bold"><i class="fab fa-facebook mr-1"></i>Será conectada como Facebook</span>'
+                : igInfo;
             div.innerHTML = `
                 <div class="name">${page.name}</div>
-                <div class="meta">ID: ${page.id} · ${igInfo}</div>
+                <div class="meta">ID: ${page.id} · ${platformHint}</div>
+                ${platform === 'FACEBOOK' && page.instagram_business_account ? `<div class="meta">${igInfo}</div>` : ''}
             `;
             div.onclick = () => {
                 document.querySelectorAll('.page-item').forEach(el => el.classList.remove('selected'));
@@ -220,7 +292,7 @@
         if (!validatedToken || !selectedPageId) return;
         const btn = document.getElementById('connect-btn');
         btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Conectando e sincronizando...';
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-1"></i>Conectando ${platformLabels[platform].label} e sincronizando...`;
 
         try {
             const r = await fetch('/api/auth/system-user/connect', {
@@ -237,20 +309,22 @@
 
             if (!data.ok) {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-plug mr-1"></i>Conectar';
+                btn.innerHTML = `<i class="fas fa-plug mr-1"></i>Conectar ${platformLabels[platform].label}`;
                 return Swal.fire('Erro', data.error || 'Falha ao conectar', 'error');
             }
 
             const synced = data.sync?.synced || 0;
             const warnings = data.sync?.warnings || [];
-            const igMsg = data.instagram_business_id ? `Instagram ID: ${data.instagram_business_id}` : 'Sem Instagram vinculado nessa página';
+            const platformMsg = platform === 'FACEBOOK'
+                ? `Página Facebook ID: ${data.page_id}`
+                : (data.instagram_business_id ? `Instagram ID: ${data.instagram_business_id}` : 'Sem Instagram vinculado nessa página');
 
             Swal.fire({
                 icon: 'success',
-                title: 'Conectado!',
+                title: `${platformLabels[platform].label} conectado!`,
                 html: `<div class="text-left">
                     <p><strong>Página:</strong> ${data.page_name}</p>
-                    <p><strong>${igMsg}</strong></p>
+                    <p><strong>${platformMsg}</strong></p>
                     <p><strong>${synced} posts sincronizados</strong></p>
                     ${warnings.length ? '<p class="text-warning small">' + warnings.join('<br>') + '</p>' : ''}
                 </div>`
@@ -259,7 +333,7 @@
             });
         } catch (err) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-plug mr-1"></i>Conectar';
+            btn.innerHTML = `<i class="fas fa-plug mr-1"></i>Conectar ${platformLabels[platform].label}`;
             Swal.fire('Erro', err.message, 'error');
         }
     };
