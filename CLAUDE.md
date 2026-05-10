@@ -31,6 +31,8 @@ Em produção, as variáveis são configuradas no dashboard da Vercel.
 
 Após concluir qualquer tarefa de implementação ou atualização, executar **sempre** os três passos abaixo, nessa ordem:
 
+Observação operacional: neste repositório, assumir por padrão que o mantenedor trabalha sozinho e que `git push` para `main` e a validação do deploy na Vercel fazem parte do fluxo automático normal após validação local, exceto quando a tarefa envolver risco operacional extraordinário, secrets ou migrations destrutivas.
+
 ### 1. Commit + push para o repositório
 
 ```bash

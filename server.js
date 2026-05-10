@@ -442,6 +442,58 @@ async function publishInstagramImage(config, caption, imageUrl) {
     };
 }
 
+async function publishFacebookPost(config, message, imageUrl) {
+    if (!config?.credentials_encrypted) throw new Error('Credenciais do Facebook não encontradas para este canal');
+
+    const metadata = config.metadata || {};
+    const pageId = String(metadata.page_id || '').trim();
+    if (!pageId) {
+        throw new Error('Página Facebook não encontrada. Reconecte o canal do Facebook antes de publicar.');
+    }
+
+    const credentials = decryptSocialCredentials(config.credentials_encrypted);
+    const accessToken = credentials.page_access_token || credentials.access_token;
+    if (!accessToken) throw new Error('Token do Facebook não encontrado');
+
+    const publishRes = imageUrl
+        ? await postMetaForm(`/${pageId}/photos`, {
+            url: imageUrl,
+            caption: message,
+            published: 'true',
+            access_token: accessToken
+        })
+        : await postMetaForm(`/${pageId}/feed`, {
+            message,
+            access_token: accessToken
+        });
+
+    if (!publishRes.ok) {
+        throw new Error(publishRes.data?.error?.message || 'Falha ao publicar no Facebook');
+    }
+
+    const externalId = String(publishRes.data?.post_id || publishRes.data?.id || '').trim();
+    if (!externalId) {
+        throw new Error('Facebook não retornou o identificador da publicação criada');
+    }
+
+    const postRes = await fetchMeta(`/${externalId}`, accessToken, {
+        fields: 'id,message,story,created_time,permalink_url,full_picture,attachments{media_type,type,media,url,subattachments}'
+    });
+
+    if (postRes.ok && postRes.data?.id) {
+        return postRes.data;
+    }
+
+    return {
+        id: externalId,
+        message,
+        created_time: new Date().toISOString(),
+        permalink_url: null,
+        full_picture: imageUrl || null,
+        attachments: imageUrl ? { data: [{ type: 'photo' }] } : null
+    };
+}
+
 // ─── App auth helpers ────────────────────────────────────────────────────────
 
 const AUTH_COOKIE = 'wozza_session';
@@ -789,6 +841,7 @@ const DEFAULT_META_SCOPES = [
     'instagram_content_publish',
     'instagram_manage_comments',
     'instagram_manage_messages',
+    'pages_manage_posts',
     'pages_show_list',
     'pages_read_engagement',
     'business_management'
@@ -1632,6 +1685,7 @@ app.post('/api/social/post-multi', async (req, res) => {
         const resultado = {};
         const results = [];
         let instagramPublishedPost = null;
+        let facebookPublishedPost = null;
 
         for (const rede of destinos) {
             if (rede === 'INSTAGRAM') {
@@ -1645,6 +1699,24 @@ app.post('/api/social/post-multi', async (req, res) => {
                     resultado[rede] = { success: true, externalId: published.id, permalink: published.permalink || null };
                     results.unshift({ platform: rede, externalId: published.id, success: true, source: 'publish' });
                     instagramPublishedPost = { config, published };
+                } catch (err) {
+                    resultado[rede] = { success: false, error: err.message };
+                    results.unshift({ platform: rede, success: false, error: err.message, source: 'publish' });
+                }
+                continue;
+            }
+
+            if (rede === 'FACEBOOK') {
+                try {
+                    const config = await db.getConfig(schoolId, 'FACEBOOK');
+                    if (!config || String(config.connection_status || '').toUpperCase() !== 'CONNECTED' || !config.enabled) {
+                        throw new Error('Canal do Facebook não está conectado e habilitado.');
+                    }
+
+                    const published = await publishFacebookPost(config, text, imageUrl || null);
+                    resultado[rede] = { success: true, externalId: published.id, permalink: published.permalink_url || null };
+                    results.unshift({ platform: rede, externalId: published.id, success: true, source: 'publish' });
+                    facebookPublishedPost = { config, published };
                 } catch (err) {
                     resultado[rede] = { success: false, error: err.message };
                     results.unshift({ platform: rede, success: false, error: err.message, source: 'publish' });
@@ -1680,6 +1752,32 @@ app.post('/api/social/post-multi', async (req, res) => {
                     thumbnail_url: published.thumbnail_url || published.media_url || imageUrl,
                     type: published.media_type || 'IMAGE'
                 },
+                results
+            });
+        } else if (facebookPublishedPost) {
+            const metadata = facebookPublishedPost.config.metadata || {};
+            const published = facebookPublishedPost.published;
+            post = await db.upsertSyncedPost({
+                school_id: schoolId,
+                platform: 'FACEBOOK',
+                external_id: published.id,
+                content: published.message || published.story || text,
+                media_url: published.full_picture || imageUrl || null,
+                thumbnail_url: published.full_picture || imageUrl || null,
+                permalink: published.permalink_url || null,
+                media_type: published.attachments?.data?.[0]?.type || (published.full_picture ? 'photo' : null),
+                like_count: 0,
+                comments_count: 0,
+                account_username: metadata.page_name || 'Facebook',
+                account_avatar: null,
+                published_at: published.created_time || new Date().toISOString(),
+                media: (published.full_picture || imageUrl)
+                    ? {
+                        url: published.full_picture || imageUrl,
+                        thumbnail_url: published.full_picture || imageUrl,
+                        type: published.attachments?.data?.[0]?.type || 'photo'
+                    }
+                    : null,
                 results
             });
         }

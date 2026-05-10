@@ -8,7 +8,7 @@ Wozza e uma aplicacao web em Node.js/Express com interface AdminLTE 3 e funciona
 - UI: AdminLTE 3, Bootstrap 4 e Font Awesome servidos a partir de `node_modules`.
 - Banco planejado: Neon DB/PostgreSQL via variavel de ambiente, sem secrets versionados.
 - Frontend atual: HTML estatico na raiz e arquivos em `public/` quando aplicavel.
-- Deploy: ainda nao padronizado neste projeto; confirmar alvo antes de executar deploy.
+- Deploy: Vercel via push na branch `main`; validar o deploy publicado apos o push quando houver alteracao relevante.
 
 ## Estrutura principal
 - `/server.js`: entry point do backend, configuracao Express, assets estaticos e rotas da aplicacao.
@@ -61,12 +61,13 @@ Regra operacional adicional:
 
 - A cada implementacao ou atualizacao, o agente deve avaliar o que mudou e, se necessario para teste e validacao, executar tambem o deploy e o push do codigo ja validado, alem de atualizar a documentacao correspondente.
 - Quando a alteracao impactar comportamento que precisa ser testado em ambiente publicado, priorizar push + deploy da mudanca validada no mesmo fluxo de entrega.
+- Considerar que apenas o mantenedor atual trabalha neste sistema; por padrao, nao e necessario pedir confirmacao adicional antes de `git push` ou da validacao do deploy apos alteracoes concluidas e validadas.
 
 **Instrucao obrigatoria:**
 
-Antes de executar deploy, migrations ou `git push`, informe ao usuario o que sera feito e por que, e aguarde confirmacao explicita.
+Antes de executar migrations SQL destrutivas, informe ao usuario o que sera feito e por que.
 
-Nao executar deploy, migrations ou push automaticamente sem confirmacao explicita do usuario.
+`git push` e validacao do deploy podem ser executados automaticamente ao final do fluxo, desde que a alteracao tenha sido validada e nao envolva secrets, migrations destrutivas ou risco operacional fora do escopo pedido.
 
 ## Arquivos e pastas a serem ignorados pelo agente
 
