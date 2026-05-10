@@ -186,6 +186,63 @@ async function fetchMeta(pathname, accessToken, params = {}) {
     return fetchJson(`${META_GRAPH_BASE}/${pathname.replace(/^\//, '')}?${query}`);
 }
 
+const META_REQUIRED_PUBLISH_PERMISSIONS = {
+    FACEBOOK: ['pages_manage_posts'],
+    INSTAGRAM: ['instagram_content_publish']
+};
+
+function platformMetaPublishPermissions(platform) {
+    return META_REQUIRED_PUBLISH_PERMISSIONS[String(platform || '').toUpperCase()] || [];
+}
+
+async function inspectMetaTokenPermissions(accessToken) {
+    const appId = env('META_APP_ID');
+    const appSecret = env('META_APP_SECRET');
+    if (!appId || !appSecret) {
+        return { checked: false, scopes: [], error: 'META_APP_ID ou META_APP_SECRET não configurado' };
+    }
+
+    const debugRes = await fetchJson(`${META_GRAPH_BASE}/debug_token?${new URLSearchParams({
+        input_token: accessToken,
+        access_token: `${appId}|${appSecret}`
+    })}`);
+
+    if (!debugRes.ok || !debugRes.data?.data) {
+        return { checked: false, scopes: [], error: debugRes.data?.error?.message || 'Não foi possível inspecionar permissões do token Meta' };
+    }
+
+    const data = debugRes.data.data;
+    const scopes = new Set(Array.isArray(data.scopes) ? data.scopes : []);
+    if (Array.isArray(data.granular_scopes)) {
+        data.granular_scopes.forEach((item) => {
+            if (item?.scope) scopes.add(item.scope);
+        });
+    }
+
+    return { checked: true, scopes: Array.from(scopes), error: null };
+}
+
+function metaMissingPublishPermissions(scopes, platform) {
+    const scopeSet = new Set(Array.isArray(scopes) ? scopes : []);
+    return platformMetaPublishPermissions(platform).filter((permission) => !scopeSet.has(permission));
+}
+
+function metaPermissionHelp(platform, missingPermissions) {
+    const label = String(platform || '').toUpperCase() === 'FACEBOOK' ? 'Facebook' : 'Instagram';
+    return `O token não tem permissão de publicação para ${label}: ${missingPermissions.join(', ')}. Gere um novo System User Token no mesmo app marcando essas permissões. Se elas não aparecerem no Meta Business, precisam ser habilitadas/aprovadas no App Review do app.`;
+}
+
+function friendlyMetaPublishError(platform, message) {
+    const text = String(message || '');
+    const platformUpper = String(platform || '').toUpperCase();
+    const requiredPermissions = platformMetaPublishPermissions(platformUpper);
+    const mentionsRequiredPermission = requiredPermissions.some((permission) => text.includes(permission));
+    if (mentionsRequiredPermission || /permission\(s\)|Requires .*permission/i.test(text)) {
+        return `${metaPermissionHelp(platformUpper, requiredPermissions)} Detalhe Meta: ${text}`;
+    }
+    return text || `Falha ao publicar no ${platformUpper === 'FACEBOOK' ? 'Facebook' : 'Instagram'}`;
+}
+
 function graphPageInfo(page) {
     return {
         page_id: page?.id || null,
@@ -411,7 +468,7 @@ async function publishInstagramImage(config, caption, imageUrl) {
         access_token: accessToken
     });
     if (!createRes.ok || !createRes.data?.id) {
-        throw new Error(createRes.data?.error?.message || 'Falha ao criar contêiner de mídia no Instagram');
+        throw new Error(friendlyMetaPublishError('INSTAGRAM', createRes.data?.error?.message || 'Falha ao criar contêiner de mídia no Instagram'));
     }
 
     const publishRes = await postMetaForm(`/${instagramBusinessId}/media_publish`, {
@@ -419,7 +476,7 @@ async function publishInstagramImage(config, caption, imageUrl) {
         access_token: accessToken
     });
     if (!publishRes.ok || !publishRes.data?.id) {
-        throw new Error(publishRes.data?.error?.message || 'Falha ao publicar mídia no Instagram');
+        throw new Error(friendlyMetaPublishError('INSTAGRAM', publishRes.data?.error?.message || 'Falha ao publicar mídia no Instagram'));
     }
 
     const mediaId = String(publishRes.data.id);
@@ -468,7 +525,7 @@ async function publishFacebookPost(config, message, imageUrl) {
         });
 
     if (!publishRes.ok) {
-        throw new Error(publishRes.data?.error?.message || 'Falha ao publicar no Facebook');
+        throw new Error(friendlyMetaPublishError('FACEBOOK', publishRes.data?.error?.message || 'Falha ao publicar no Facebook'));
     }
 
     const externalId = String(publishRes.data?.post_id || publishRes.data?.id || '').trim();
@@ -870,6 +927,7 @@ app.get('/auth/meta/start', (req, res) => {
 
 app.post('/api/auth/system-user/validate', async (req, res) => {
     const accessToken = String(req.body?.access_token || '').trim();
+    const platform = String(req.body?.platform || '').trim().toUpperCase();
     if (!accessToken) return res.status(400).json({ error: 'access_token é obrigatório' });
 
     try {
@@ -884,6 +942,10 @@ app.post('/api/auth/system-user/validate', async (req, res) => {
         console.log('[System User] Pages response:', JSON.stringify(pagesRes.data, null, 2));
 
         const pages = pagesRes.ok ? (pagesRes.data.data || []) : [];
+        const permissionInfo = await inspectMetaTokenPermissions(accessToken);
+        const missingPermissions = platform
+            ? metaMissingPublishPermissions(permissionInfo.scopes, platform)
+            : [];
 
         for (const page of pages) {
             if (!page.instagram_business_account?.id && !page.connected_instagram_account?.id) {
@@ -903,6 +965,13 @@ app.post('/api/auth/system-user/validate', async (req, res) => {
         res.json({
             ok: true,
             user: meRes.data,
+            permissions: {
+                checked: permissionInfo.checked,
+                scopes: permissionInfo.scopes,
+                missing: missingPermissions,
+                message: missingPermissions.length ? metaPermissionHelp(platform, missingPermissions) : null,
+                error: permissionInfo.error || null
+            },
             pages: pages.map(p => ({
                 id: p.id,
                 name: p.name,
@@ -923,6 +992,16 @@ app.post('/api/auth/system-user/connect', async (req, res) => {
     }
 
     try {
+        const permissionInfo = await inspectMetaTokenPermissions(access_token);
+        const missingPermissions = metaMissingPublishPermissions(permissionInfo.scopes, platform);
+        if (permissionInfo.checked && missingPermissions.length) {
+            return res.status(400).json({
+                ok: false,
+                error: metaPermissionHelp(platform, missingPermissions),
+                missing_permissions: missingPermissions
+            });
+        }
+
         const pagesRes = await fetchJson(
             `https://graph.facebook.com/v19.0/me/accounts?access_token=${access_token}&fields=id,name,access_token,instagram_business_account{id,username},connected_instagram_account{id,username}&limit=100`
         );

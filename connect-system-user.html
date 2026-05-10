@@ -59,6 +59,7 @@
         .page-item .meta { font-size: 12px; color: #6c757d; margin-top: 4px; }
         .page-item .ig-ok { color: #28a745; font-weight: 600; }
         .page-item .ig-no { color: #dc3545; font-weight: 600; }
+        .permission-warning { display: none; }
         .platform-choice {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -166,6 +167,7 @@
         <div class="step-title"><span class="step-num">5</span>Cole o token aqui</div>
         <div class="step-body">
             <textarea id="token-input" class="form-control" rows="3" placeholder="Cole aqui o System User Token (começa com EAA...)"></textarea>
+            <div id="permission-warning" class="alert alert-warning permission-warning mt-3 mb-0"></div>
             <div class="mt-2">
                 <button id="validate-btn" class="btn btn-primary"><i class="fas fa-check mr-1"></i>Validar Token e Listar Páginas</button>
                 <span id="loading" style="display:none;" class="ml-2 text-muted"><i class="fas fa-spinner fa-spin"></i> Validando...</span>
@@ -193,7 +195,24 @@
     const schoolId = params.get('school_id') || sessionStorage.getItem('SCHOOL_ID') || 'wozza-default-school';
     let validatedToken = null;
     let validatedPages = [];
+    let missingPermissions = [];
     let selectedPageId = null;
+
+    function renderPermissionWarning(message, missing = []) {
+        const warning = document.getElementById('permission-warning');
+        missingPermissions = missing;
+        if (!message && !missing.length) {
+            warning.style.display = 'none';
+            warning.innerHTML = '';
+            return;
+        }
+        warning.style.display = 'block';
+        warning.innerHTML = `
+            <div class="font-weight-bold mb-1"><i class="fas fa-exclamation-triangle mr-1"></i>Permissões de publicação ausentes</div>
+            <div>${message || 'O token foi lido, mas não inclui todas as permissões necessárias para publicar.'}</div>
+            ${missing.length ? `<div class="mt-2"><code>${missing.join('</code> <code>')}</code></div>` : ''}
+        `;
+    }
 
     function setPlatform(nextPlatform, updateUrl = true) {
         platform = platformLabels[nextPlatform] ? nextPlatform : 'FACEBOOK';
@@ -211,6 +230,7 @@
             nextParams.set('school_id', schoolId);
             history.replaceState({}, '', `${location.pathname}?${nextParams}`);
         }
+        renderPermissionWarning('', []);
         if (validatedPages.length) renderPages(validatedPages);
     }
 
@@ -230,7 +250,7 @@
             const r = await fetch('/api/auth/system-user/validate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ access_token: token })
+                body: JSON.stringify({ access_token: token, platform })
             });
             const data = await r.json();
 
@@ -241,6 +261,7 @@
 
             validatedToken = token;
             validatedPages = data.pages || [];
+            renderPermissionWarning(data.permissions?.message || '', data.permissions?.missing || []);
             renderPages(validatedPages);
         } catch (err) {
             document.getElementById('loading').style.display = 'none';
@@ -290,6 +311,13 @@
 
     document.getElementById('connect-btn').onclick = async () => {
         if (!validatedToken || !selectedPageId) return;
+        if (missingPermissions.length) {
+            return Swal.fire(
+                'Permissões ausentes',
+                `Gere um novo token marcando: ${missingPermissions.join(', ')}. O token atual lista páginas, mas não consegue publicar.`,
+                'warning'
+            );
+        }
         const btn = document.getElementById('connect-btn');
         btn.disabled = true;
         btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-1"></i>Conectando ${platformLabels[platform].label} e sincronizando...`;
