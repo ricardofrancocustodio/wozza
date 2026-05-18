@@ -407,6 +407,61 @@ async function syncMetaPostsForConfig(config) {
     return summary;
 }
 
+async function syncTikTokPosts(schoolId) {
+    const config = await db.getConfig(schoolId, 'TIKTOK');
+    const summary = { platform: 'TIKTOK', synced: 0, warnings: [] };
+    if (!config || config.connection_status !== 'CONNECTED') {
+        summary.warnings.push('Canal TikTok não conectado.');
+        return { results: [summary], warnings: summary.warnings, synced: 0 };
+    }
+    if (!config.credentials_encrypted) {
+        summary.warnings.push('Token TikTok não encontrado. Reconecte o canal para salvar o token.');
+        return { results: [summary], warnings: summary.warnings, synced: 0 };
+    }
+    const credentials = decryptSocialCredentials(config.credentials_encrypted);
+    const accessToken = credentials.access_token;
+    const metadata = config.metadata || {};
+
+    const videoRes = await fetchJson('https://open.tiktokapis.com/v2/video/list/?fields=id,title,video_description,duration,cover_image_url,embed_link,like_count,comment_count,view_count,create_time,share_url', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ max_count: 20 })
+    });
+
+    if (!videoRes.ok) {
+        const msg = videoRes.data?.error?.message || 'Falha ao buscar vídeos do TikTok';
+        summary.warnings.push(msg);
+        return { results: [summary], warnings: summary.warnings, synced: 0 };
+    }
+
+    for (const video of videoRes.data?.data?.videos || []) {
+        await db.upsertSyncedPost({
+            school_id:        schoolId,
+            platform:         'TIKTOK',
+            external_id:      video.id,
+            content:          video.video_description || video.title || '',
+            media_url:        video.embed_link || video.share_url || null,
+            thumbnail_url:    video.cover_image_url || null,
+            permalink:        video.share_url || null,
+            media_type:       'VIDEO',
+            like_count:       Number(video.like_count || 0),
+            comments_count:   Number(video.comment_count || 0),
+            account_username: metadata.display_name || metadata.tiktok_account_id || 'TikTok',
+            account_avatar:   metadata.avatar_url || null,
+            published_at:     video.create_time ? new Date(video.create_time * 1000).toISOString() : new Date().toISOString(),
+            media:            video.cover_image_url ? { url: video.embed_link || video.share_url, thumbnail_url: video.cover_image_url, type: 'VIDEO' } : null,
+            results:          [{ platform: 'TIKTOK', externalId: video.id, success: true, source: 'sync' }]
+        });
+        summary.synced += 1;
+    }
+
+    await db.upsertConfig(schoolId, 'TIKTOK', {
+        metadata: JSON.stringify({ ...metadata, last_sync_at: new Date().toISOString(), last_sync_result: summary })
+    });
+
+    return { results: [summary], warnings: summary.warnings, synced: summary.synced };
+}
+
 async function syncMetaPosts(schoolId, platform) {
     const platforms = platform ? [platform] : ['INSTAGRAM', 'FACEBOOK'];
     const results = [];
@@ -1301,12 +1356,26 @@ app.get('/auth/tiktok/callback', async (req, res) => {
             body: new URLSearchParams({ client_key: env('TIKTOK_SANDBOX_CLIENT_KEY') || env('TIKTOK_CLIENT_KEY') || env('TIKTOK_APP_ID'), client_secret: env('TIKTOK_SANDBOX_CLIENT_SECRET') || env('TIKTOK_CLIENT_SECRET') || env('TIKTOK_APP_SECRET'), code, grant_type: 'authorization_code', redirect_uri: oauthRedirectUri(req, 'tiktok') })
         });
         if (!tokenRes.ok) throw new Error(tokenRes.data?.error?.message || 'Falha ao obter token TikTok');
-        const { open_id } = tokenRes.data;
+        const { open_id, access_token, refresh_token, scope } = tokenRes.data;
+        // Busca nome/avatar do usuário via user.info.basic
+        let displayName = null, avatarUrl = null;
+        try {
+            const userRes = await fetchJson(`https://open.tiktokapis.com/v2/user/info/?fields=display_name,avatar_url`, {
+                headers: { Authorization: `Bearer ${access_token}` }
+            });
+            if (userRes.ok) {
+                displayName = userRes.data?.data?.user?.display_name || null;
+                avatarUrl   = userRes.data?.data?.user?.avatar_url   || null;
+            }
+        } catch (_) {}
+        const credentialsEncrypted = encryptSocialCredentials({ access_token, refresh_token: refresh_token || null });
         await db.upsertConfig(schoolId, 'TIKTOK', {
             enabled: true,
             connection_status: 'CONNECTED',
-            credentials_present: JSON.stringify({ access_token: true, refresh_token: false, app_secret: false }),
-            metadata: JSON.stringify({ tiktok_account_id: open_id })
+            account_label: displayName || open_id,
+            credentials_present: JSON.stringify({ access_token: true, refresh_token: !!refresh_token }),
+            credentials_encrypted: credentialsEncrypted,
+            metadata: JSON.stringify({ tiktok_account_id: open_id, display_name: displayName, avatar_url: avatarUrl, scope })
         });
         res.redirect(`/social-monitor?oauth_ok=TIKTOK&school_id=${encodeURIComponent(schoolId)}`);
     } catch (err) {
@@ -1909,11 +1978,16 @@ app.post('/api/social/sync-posts', async (req, res) => {
         const platform = body.platform ? String(body.platform).trim().toUpperCase() : null;
         if (!schoolId) return res.status(400).json({ error: 'school_id é obrigatório' });
         if (schoolId !== user.school_id) return res.status(403).json({ error: 'school_id não pertence ao usuário autenticado' });
-        if (platform && !['INSTAGRAM', 'FACEBOOK'].includes(platform)) {
-            return res.status(400).json({ error: 'platform deve ser INSTAGRAM ou FACEBOOK' });
+        if (platform && !['INSTAGRAM', 'FACEBOOK', 'TIKTOK'].includes(platform)) {
+            return res.status(400).json({ error: 'platform deve ser INSTAGRAM, FACEBOOK ou TIKTOK' });
         }
 
-        const syncResult = await syncMetaPosts(schoolId, platform);
+        if (platform === 'TIKTOK') {
+            const syncResult = await syncTikTokPosts(schoolId);
+            return res.json({ ok: true, ...syncResult });
+        }
+        const metaPlatform = platform === 'TIKTOK' ? null : platform;
+        const syncResult = await syncMetaPosts(schoolId, metaPlatform);
         return res.json({ ok: true, ...syncResult });
     } catch (err) {
         return res.status(500).json({ error: err.message });
