@@ -1285,7 +1285,7 @@ app.get('/auth/tiktok/start', (req, res) => {
         response_type: 'code',
         state: oauthState('TIKTOK', schoolId),
         redirect_uri: oauthRedirectUri(req, 'tiktok'),
-        scope: 'user.info.basic,video.list,video.publish'
+        scope: 'user.info.basic,video.upload'
     });
     res.redirect(`https://www.tiktok.com/v2/auth/authorize/?${params}`);
 });
@@ -1944,6 +1944,7 @@ app.delete('/api/social/posts/:externalId', (req, res) => res.json({ success: tr
 
 // ─── Webhooks ─────────────────────────────────────────────────────────────────
 app.post('/webhook/social/meta',     (req, res) => res.json({ received: true }));
+app.get('/webhook/social/tiktok',    (req, res) => res.send(req.query.challenge || 'ok'));
 app.post('/webhook/social/tiktok',   (req, res) => res.json({ received: true }));
 app.post('/webhook/social/linkedin', (req, res) => res.json({ received: true }));
 
