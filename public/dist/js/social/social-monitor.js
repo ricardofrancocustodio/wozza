@@ -516,6 +516,25 @@ function findMessageById(messageId) {
     return socialState.messages.find((item) => item.id === messageId) || null;
 }
 
+function postMediaType() {
+    return $('#sm-post-type-video').hasClass('active') ? 'video' : 'image';
+}
+
+function switchPostMediaType(type) {
+    if (type === 'video') {
+        $('#sm-post-image-section').hide();
+        $('#sm-post-video-section').show();
+        $('#sm-post-type-image').removeClass('btn-primary active').addClass('btn-outline-primary');
+        $('#sm-post-type-video').removeClass('btn-outline-primary').addClass('btn-primary active');
+    } else {
+        $('#sm-post-video-section').hide();
+        $('#sm-post-image-section').show();
+        $('#sm-post-type-video').removeClass('btn-primary active').addClass('btn-outline-primary');
+        $('#sm-post-type-image').removeClass('btn-outline-primary').addClass('btn-primary active');
+    }
+    renderPostNetworkCheckboxes(socialState.configs);
+}
+
 function renderPostNetworkCheckboxes(configs) {
     const container = $('#sm-post-networks');
     container.empty();
@@ -529,14 +548,19 @@ function renderPostNetworkCheckboxes(configs) {
         return;
     }
 
+    const isVideo = postMediaType() === 'video';
+
     connected.forEach((cfg) => {
         const platform = escapeHtml(cfg.platform || '');
         const label = escapeHtml(platformLabel(cfg.platform));
         const id = `sm-post-net-${platform.toLowerCase()}`;
+        const tiktokImageMode = platform === 'TIKTOK' && !isVideo;
+        const disabled = tiktokImageMode ? 'disabled' : '';
+        const title = tiktokImageMode ? 'title="TikTok só aceita vídeo. Mude para o modo Vídeo."' : '';
         container.append(`
-            <div class="custom-control custom-checkbox">
-                <input type="checkbox" class="custom-control-input sm-post-network-check" id="${id}" value="${platform}" checked>
-                <label class="custom-control-label" for="${id}">${label}</label>
+            <div class="custom-control custom-checkbox" ${title}>
+                <input type="checkbox" class="custom-control-input sm-post-network-check" id="${id}" value="${platform}" ${tiktokImageMode ? '' : 'checked'} ${disabled}>
+                <label class="custom-control-label${tiktokImageMode ? ' text-muted' : ''}" for="${id}">${label}${tiktokImageMode ? ' <small>(só vídeo)</small>' : ''}</label>
             </div>
         `);
     });
@@ -672,13 +696,16 @@ async function uploadSelectedPostImage(file) {
 
 async function publicarNasRedes() {
     const texto = String($('#sm-post-text').val() || '').trim();
-    const imageUrl = String($('#sm-post-image-url').val() || '').trim();
+    const isVideo = postMediaType() === 'video';
+    const imageUrl = isVideo ? '' : String($('#sm-post-image-url').val() || '').trim();
+    const videoUrl = isVideo ? String($('#sm-post-video-url').val() || '').trim() : '';
+
     if (!texto) {
         Swal.fire('Atenção', 'Escreva o texto da postagem antes de publicar.', 'warning');
         return;
     }
 
-    const destinos = $('.sm-post-network-check:checked').map(function() {
+    const destinos = $('.sm-post-network-check:checked:not(:disabled)').map(function() {
         return $(this).val();
     }).get();
 
@@ -687,13 +714,28 @@ async function publicarNasRedes() {
         return;
     }
 
-    if (destinos.includes('INSTAGRAM') && !imageUrl) {
-        Swal.fire('Atenção', 'Para publicar no Instagram, envie uma imagem antes de continuar.', 'warning');
-        return;
+    if (isVideo) {
+        if (!videoUrl) {
+            Swal.fire('Atenção', 'Informe a URL pública do vídeo (.mp4) antes de continuar.', 'warning');
+            return;
+        }
+        if (!/^https?:\///i.test(videoUrl)) {
+            Swal.fire('Atenção', 'A URL do vídeo precisa começar com http:// ou https://.', 'warning');
+            return;
+        }
+    } else {
+        if (destinos.includes('INSTAGRAM') && !imageUrl) {
+            Swal.fire('Atenção', 'Para publicar no Instagram, envie uma imagem antes de continuar.', 'warning');
+            return;
+        }
     }
 
     const btn = $('#sm-post-submit-btn');
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Publicando...');
+
+    const media = isVideo
+        ? { video_url: videoUrl, url: videoUrl, type: 'VIDEO' }
+        : (imageUrl ? { image_url: imageUrl, url: imageUrl, type: 'IMAGE' } : null);
 
     try {
         const res = await fetch('/api/social/post-multi', {
@@ -704,10 +746,7 @@ async function publicarNasRedes() {
             },
             body: JSON.stringify({
                 school_id: socialState.schoolId,
-                conteudo: {
-                    text: texto,
-                    media: imageUrl ? { image_url: imageUrl, url: imageUrl, type: 'IMAGE' } : null
-                },
+                conteudo: { text: texto, media },
                 destinos
             })
         });
@@ -719,6 +758,7 @@ async function publicarNasRedes() {
         if (body.post) {
             $('#sm-post-text').val('');
             $('#sm-post-image-url').val('');
+            $('#sm-post-video-url').val('');
             $('#sm-post-char-count').text('0');
             resetPostImageUploadUi();
             await feedFetchMonth(calState.viewYear, calState.viewMonth);
@@ -1748,6 +1788,9 @@ $(document).ready(async function() {
     $('#sm-refresh-btn').on('click', loadMonitor);
     $('#sm-sim-submit').on('click', ingestSimulation);
     $('#sm-post-submit-btn').on('click', publicarNasRedes);
+    $('#sm-post-media-type-group').on('click', 'button[data-type]', function() {
+        switchPostMediaType($(this).data('type'));
+    });
     $('#sm-post-text').on('input', function() {
         $('#sm-post-char-count').text($(this).val().length);
     });

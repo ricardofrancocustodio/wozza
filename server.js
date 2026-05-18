@@ -504,6 +504,125 @@ async function postMetaForm(pathname, fields) {
     });
 }
 
+async function publishInstagramReel(config, caption, videoUrl) {
+    if (!config?.credentials_encrypted) throw new Error('Credenciais do Instagram não encontradas para este canal');
+
+    const metadata = config.metadata || {};
+    const instagramBusinessId = String(metadata.instagram_business_id || '').trim();
+    if (!instagramBusinessId) {
+        throw new Error('Conta Instagram Business não encontrada. Reconecte o canal do Instagram antes de publicar.');
+    }
+
+    const credentials = decryptSocialCredentials(config.credentials_encrypted);
+    const accessToken = credentials.page_access_token || credentials.access_token;
+    if (!accessToken) throw new Error('Token do Instagram não encontrado');
+
+    const createRes = await postMetaForm(`/${instagramBusinessId}/media`, {
+        video_url: videoUrl,
+        caption,
+        media_type: 'REELS',
+        access_token: accessToken
+    });
+    if (!createRes.ok || !createRes.data?.id) {
+        throw new Error(friendlyMetaPublishError('INSTAGRAM', createRes.data?.error?.message || 'Falha ao criar contêiner de Reel no Instagram'));
+    }
+
+    const mediaContainerId = String(createRes.data.id);
+
+    // Aguarda o vídeo ser processado (até 60s)
+    let statusCode = '';
+    for (let attempt = 0; attempt < 12; attempt++) {
+        await new Promise((r) => setTimeout(r, 5000));
+        const statusRes = await fetchMeta(`/${mediaContainerId}`, accessToken, { fields: 'status_code,status' });
+        statusCode = statusRes.data?.status_code || '';
+        if (statusCode === 'FINISHED') break;
+        if (statusCode === 'ERROR') throw new Error('Falha no processamento do vídeo no Instagram. Verifique se a URL do vídeo é acessível.');
+    }
+    if (statusCode !== 'FINISHED') throw new Error('Tempo esgotado aguardando processamento do vídeo no Instagram.');
+
+    const publishRes = await postMetaForm(`/${instagramBusinessId}/media_publish`, {
+        creation_id: mediaContainerId,
+        access_token: accessToken
+    });
+    if (!publishRes.ok || !publishRes.data?.id) {
+        throw new Error(friendlyMetaPublishError('INSTAGRAM', publishRes.data?.error?.message || 'Falha ao publicar Reel no Instagram'));
+    }
+
+    const mediaId = String(publishRes.data.id);
+    const mediaRes = await fetchMeta(`/${mediaId}`, accessToken, {
+        fields: 'id,caption,media_type,media_url,permalink,timestamp,username,thumbnail_url'
+    });
+
+    return {
+        id: mediaId,
+        caption: mediaRes.data?.caption || caption,
+        media_type: 'REELS',
+        media_url: mediaRes.data?.media_url || null,
+        thumbnail_url: mediaRes.data?.thumbnail_url || null,
+        permalink: mediaRes.data?.permalink || null,
+        timestamp: mediaRes.data?.timestamp || new Date().toISOString(),
+        username: mediaRes.data?.username || metadata.page_name || 'Instagram'
+    };
+}
+
+async function publishTikTokVideo(config, text, videoUrl) {
+    if (!config?.credentials_encrypted) throw new Error('Credenciais do TikTok não encontradas para este canal');
+
+    const metadata = config.metadata || {};
+    const credentials = decryptSocialCredentials(config.credentials_encrypted);
+    const accessToken = credentials.access_token;
+    if (!accessToken) throw new Error('Token do TikTok não encontrado. Reconecte o canal.');
+
+    const initRes = await fetchJson('https://open.tiktokapis.com/v2/post/publish/video/init/', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json; charset=UTF-8' },
+        body: JSON.stringify({
+            post_info: {
+                title: text.slice(0, 150),
+                privacy_level: 'SELF_ONLY',
+                disable_duet: false,
+                disable_comment: false,
+                disable_stitch: false
+            },
+            source_info: {
+                source: 'PULL_FROM_URL',
+                video_url: videoUrl
+            }
+        })
+    });
+
+    if (!initRes.ok || !initRes.data?.data?.publish_id) {
+        const errMsg = initRes.data?.error?.message || initRes.data?.message || 'Falha ao iniciar publicação no TikTok';
+        throw new Error(`TikTok: ${errMsg}`);
+    }
+
+    const publishId = String(initRes.data.data.publish_id);
+
+    // Aguarda confirmação (até 60s)
+    for (let attempt = 0; attempt < 12; attempt++) {
+        await new Promise((r) => setTimeout(r, 5000));
+        const statusRes = await fetchJson('https://open.tiktokapis.com/v2/post/publish/status/fetch/', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json; charset=UTF-8' },
+            body: JSON.stringify({ publish_id: publishId })
+        });
+        const status = statusRes.data?.data?.status || '';
+        if (status === 'PUBLISH_COMPLETE') {
+            return {
+                id: publishId,
+                permalink: null,
+                account_username: metadata.display_name || 'TikTok'
+            };
+        }
+        if (status === 'FAILED') {
+            const failMsg = statusRes.data?.data?.fail_reason || 'Publicação no TikTok falhou';
+            throw new Error(`TikTok: ${failMsg}`);
+        }
+    }
+
+    throw new Error('Tempo esgotado aguardando confirmação do TikTok. O vídeo pode ter sido publicado mesmo assim.');
+}
+
 async function publishInstagramImage(config, caption, imageUrl) {
     if (!config?.credentials_encrypted) throw new Error('Credenciais do Instagram não encontradas para este canal');
 
@@ -1816,7 +1935,10 @@ app.post('/api/social/post-multi', async (req, res) => {
             ? body.destinos.map((item) => String(item || '').trim().toUpperCase()).filter(Boolean)
             : [];
         const text = String(conteudo.text || '').trim();
-        const imageUrl = String(conteudo?.media?.image_url || conteudo?.media?.url || '').trim();
+        const mediaType = String(conteudo?.media?.type || '').toUpperCase();
+        const imageUrl = mediaType !== 'VIDEO' ? String(conteudo?.media?.image_url || conteudo?.media?.url || '').trim() : '';
+        const videoUrl = String(conteudo?.media?.video_url || (mediaType === 'VIDEO' ? conteudo?.media?.url : '') || '').trim();
+        const isVideo = mediaType === 'VIDEO' || !!videoUrl;
 
         if (!schoolId || !text || !destinos.length) {
             return res.status(400).json({ error: 'school_id, conteudo.text e destinos são obrigatórios' });
@@ -1824,17 +1946,27 @@ app.post('/api/social/post-multi', async (req, res) => {
         if (schoolId !== user.school_id) {
             return res.status(403).json({ error: 'school_id não pertence ao usuário autenticado' });
         }
-        if (destinos.includes('INSTAGRAM') && !imageUrl) {
-            return res.status(400).json({ error: 'Para publicar no Instagram, informe uma URL pública da imagem.' });
+        if (destinos.includes('INSTAGRAM') && !isVideo && !imageUrl) {
+            return res.status(400).json({ error: 'Para publicar no Instagram, informe uma URL pública da imagem ou vídeo.' });
+        }
+        if (destinos.includes('INSTAGRAM') && isVideo && !videoUrl) {
+            return res.status(400).json({ error: 'Para publicar Reel no Instagram, informe a URL pública do vídeo.' });
+        }
+        if (destinos.includes('TIKTOK') && !videoUrl) {
+            return res.status(400).json({ error: 'Para publicar no TikTok, informe a URL pública do vídeo (.mp4).' });
         }
         if (imageUrl && !isPublicHttpUrl(imageUrl)) {
             return res.status(400).json({ error: 'A imagem precisa ser uma URL pública HTTP/HTTPS.' });
+        }
+        if (videoUrl && !isPublicHttpUrl(videoUrl)) {
+            return res.status(400).json({ error: 'O vídeo precisa ser uma URL pública HTTP/HTTPS.' });
         }
 
         const resultado = {};
         const results = [];
         let instagramPublishedPost = null;
         let facebookPublishedPost = null;
+        let tiktokPublishedPost = null;
 
         for (const rede of destinos) {
             if (rede === 'INSTAGRAM') {
@@ -1844,7 +1976,9 @@ app.post('/api/social/post-multi', async (req, res) => {
                         throw new Error('Canal do Instagram não está conectado e habilitado.');
                     }
 
-                    const published = await publishInstagramImage(config, text, imageUrl);
+                    const published = isVideo
+                        ? await publishInstagramReel(config, text, videoUrl)
+                        : await publishInstagramImage(config, text, imageUrl);
                     resultado[rede] = { success: true, externalId: published.id, permalink: published.permalink || null };
                     results.unshift({ platform: rede, externalId: published.id, success: true, source: 'publish' });
                     instagramPublishedPost = { config, published };
@@ -1873,34 +2007,72 @@ app.post('/api/social/post-multi', async (req, res) => {
                 continue;
             }
 
-            const error = `Publicação real ainda não implementada para ${rede}.`;
-            resultado[rede] = { success: false, error };
-            results.push({ platform: rede, success: false, error, source: 'publish' });
+            if (rede === 'TIKTOK') {
+                try {
+                    const config = await db.getConfig(schoolId, 'TIKTOK');
+                    if (!config || String(config.connection_status || '').toUpperCase() !== 'CONNECTED' || !config.enabled) {
+                        throw new Error('Canal do TikTok não está conectado e habilitado.');
+                    }
+
+                    const published = await publishTikTokVideo(config, text, videoUrl);
+                    resultado[rede] = { success: true, externalId: published.id, permalink: published.permalink || null };
+                    results.push({ platform: rede, externalId: published.id, success: true, source: 'publish' });
+                    tiktokPublishedPost = { config, published };
+                } catch (err) {
+                    resultado[rede] = { success: false, error: err.message };
+                    results.push({ platform: rede, success: false, error: err.message, source: 'publish' });
+                }
+                continue;
+            }
+
+            resultado[rede] = { success: false, error: `Rede não suportada: ${rede}.` };
+            results.push({ platform: rede, success: false, error: `Rede não suportada: ${rede}.`, source: 'publish' });
         }
 
         let post = null;
         if (instagramPublishedPost) {
             const metadata = instagramPublishedPost.config.metadata || {};
             const published = instagramPublishedPost.published;
+            const mediaRef = isVideo ? videoUrl : imageUrl;
             post = await db.upsertSyncedPost({
                 school_id: schoolId,
                 platform: 'INSTAGRAM',
                 external_id: published.id,
                 content: published.caption || text,
-                media_url: published.media_url || imageUrl,
-                thumbnail_url: published.thumbnail_url || published.media_url || imageUrl,
+                media_url: published.media_url || mediaRef,
+                thumbnail_url: published.thumbnail_url || published.media_url || mediaRef,
                 permalink: published.permalink || null,
-                media_type: published.media_type || 'IMAGE',
+                media_type: published.media_type || (isVideo ? 'REELS' : 'IMAGE'),
                 like_count: 0,
                 comments_count: 0,
                 account_username: published.username || metadata.page_name || 'Instagram',
                 account_avatar: null,
                 published_at: published.timestamp || new Date().toISOString(),
                 media: {
-                    url: published.media_url || imageUrl,
-                    thumbnail_url: published.thumbnail_url || published.media_url || imageUrl,
-                    type: published.media_type || 'IMAGE'
+                    url: published.media_url || mediaRef,
+                    thumbnail_url: published.thumbnail_url || published.media_url || mediaRef,
+                    type: published.media_type || (isVideo ? 'REELS' : 'IMAGE')
                 },
+                results
+            });
+        } else if (tiktokPublishedPost) {
+            const metadata = tiktokPublishedPost.config.metadata || {};
+            const published = tiktokPublishedPost.published;
+            post = await db.upsertSyncedPost({
+                school_id: schoolId,
+                platform: 'TIKTOK',
+                external_id: published.id,
+                content: text,
+                media_url: videoUrl,
+                thumbnail_url: null,
+                permalink: published.permalink || null,
+                media_type: 'VIDEO',
+                like_count: 0,
+                comments_count: 0,
+                account_username: published.account_username || metadata.display_name || 'TikTok',
+                account_avatar: metadata.avatar_url || null,
+                published_at: new Date().toISOString(),
+                media: { url: videoUrl, thumbnail_url: null, type: 'VIDEO' },
                 results
             });
         } else if (facebookPublishedPost) {
