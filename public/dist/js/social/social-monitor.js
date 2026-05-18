@@ -1500,9 +1500,36 @@ function feedRenderCard(post, idx) {
     return card;
 }
 
+// Retorna plataformas ativas no filtro (array vazio = todas)
+function feedActiveFilter() {
+    const active = [];
+    $('.sm-net-pill.active').each(function() {
+        active.push($(this).data('platform'));
+    });
+    return active;
+}
+
+// Atualiza contadores e exibe/oculta pills sem posts
+function feedUpdatePillCounts() {
+    const counts = {};
+    Object.values(calState.postsByDay).forEach(posts => {
+        posts.forEach(p => {
+            const plat = (p.platform || p.results?.[0]?.platform || '').toUpperCase();
+            if (plat) counts[plat] = (counts[plat] || 0) + 1;
+        });
+    });
+    $('.sm-net-pill').each(function() {
+        const plat = $(this).data('platform');
+        const n = counts[plat] || 0;
+        $(this).find('.pill-count').text(n ? `(${n})` : '');
+        $(this).toggle(n > 0);
+    });
+}
+
 // Renderiza o feed inteiro (todos os posts dos meses carregados, ordem decrescente).
 function feedRender() {
     const list = $('#sm-feed-list').empty();
+    const filter = feedActiveFilter();
 
     // Junta todos os dias em ordem decrescente
     const days = Object.keys(calState.postsByDay).sort().reverse();
@@ -1514,11 +1541,19 @@ function feedRender() {
     $('#sm-feed-empty').hide();
     $('#sm-feed-loading').hide();
 
+    let totalVisible = 0;
     days.forEach(iso => {
-        const posts = (calState.postsByDay[iso] || []).slice().sort((a, b) =>
+        let posts = (calState.postsByDay[iso] || []).slice().sort((a, b) =>
             new Date(b.published_at || b.created_at || 0) - new Date(a.published_at || a.created_at || 0)
         );
+        if (filter.length) {
+            posts = posts.filter(p => {
+                const plat = (p.platform || p.results?.[0]?.platform || '').toUpperCase();
+                return filter.includes(plat);
+            });
+        }
         if (!posts.length) return;
+        totalVisible += posts.length;
         const [y, m, d] = iso.split('-');
         const date = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
         const weekday = date.toLocaleDateString('pt-BR', { weekday: 'long' });
@@ -1526,6 +1561,10 @@ function feedRender() {
         list.append(`<div class="sm-feed-day-header" data-day-header="${iso}">${escapeHtml(label)}</div>`);
         posts.forEach((p, i) => list.append(feedRenderCard(p, i)));
     });
+
+    if (!totalVisible) {
+        $('#sm-feed-empty').show();
+    }
 
     feedSetupObserver();
     feedUpdateLoadButtons();
@@ -1606,7 +1645,7 @@ async function feedLoadMore(skipRender) {
     const btn = $('#sm-feed-load-more').prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Carregando...');
     await feedFetchMonth(y, m);
     btn.prop('disabled', false).html('<i class="fas fa-chevron-down mr-1"></i>Ver postagens mais antigas');
-    if (!skipRender) { feedRender(); calRenderMonth(); }
+    if (!skipRender) { feedUpdatePillCounts(); feedRender(); calRenderMonth(); }
     calState.loading = false;
 }
 
@@ -1661,6 +1700,7 @@ async function feedInit() {
     }
 
     calRenderWarnings();
+    feedUpdatePillCounts();
     feedRender();
     calRenderMonth();
 }
@@ -1685,6 +1725,14 @@ function calInit() {
     });
     $('#sm-feed-load-more').on('click', () => feedLoadMore(false));
     $('#sm-feed-load-less').on('click', feedLoadLess);
+
+    // Pills de filtro por rede social
+    $(document).on('click', '.sm-net-pill', function() {
+        $(this).toggleClass('active');
+        feedRender();
+        feedSetupObserver();
+        feedUpdateLoadButtons();
+    });
 
     // Inicializa imediatamente já que a aba é a active por default
     feedInit();

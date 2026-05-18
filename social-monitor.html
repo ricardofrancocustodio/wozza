@@ -168,6 +168,22 @@
             border-bottom: 1px solid #efefef;
             margin: 8px 0 12px;
         }
+        /* Pills de filtro por rede */
+        .sm-net-filter { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 0 12px; }
+        .sm-net-pill {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 5px 11px; border-radius: 999px;
+            font-size: 12px; font-weight: 600; cursor: pointer;
+            border: 2px solid transparent;
+            transition: background .15s, border-color .15s, color .15s;
+            background: #f0f2f5; color: #555;
+        }
+        .sm-net-pill:hover { filter: brightness(.96); }
+        .sm-net-pill.active[data-platform="INSTAGRAM"] { background: linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888); color:#fff; border-color: transparent; }
+        .sm-net-pill.active[data-platform="FACEBOOK"]  { background: #1877f2; color:#fff; border-color: transparent; }
+        .sm-net-pill.active[data-platform="TIKTOK"]    { background: #010101; color:#fff; border-color: transparent; }
+        .sm-net-pill.active[data-platform="LINKEDIN"]  { background: #0a66c2; color:#fff; border-color: transparent; }
+        .sm-net-pill .pill-count { font-size:10px; opacity:.8; margin-left:2px; }
 
         /* Calendário de postagens */
         #sm-cal-table { table-layout: fixed; }
@@ -668,6 +684,12 @@
 
                         <!-- Coluna do feed -->
                         <main class="sm-feed-main">
+                            <!-- Filtro por rede social -->
+                            <div class="sm-net-filter" id="sm-net-filter">
+                                <span class="sm-net-pill" data-platform="INSTAGRAM"><i class="fab fa-instagram"></i>Instagram <span class="pill-count"></span></span>
+                                <span class="sm-net-pill" data-platform="FACEBOOK"><i class="fab fa-facebook"></i>Facebook <span class="pill-count"></span></span>
+                                <span class="sm-net-pill" data-platform="TIKTOK"><i class="fab fa-tiktok"></i>TikTok <span class="pill-count"></span></span>
+                            </div>
                             <div id="sm-feed-loading" class="text-center py-5">
                                 <div class="spinner-border text-primary" role="status"><span class="sr-only">Carregando...</span></div>
                             </div>
