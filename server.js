@@ -1276,7 +1276,7 @@ app.get('/auth/meta/callback', async (req, res) => {
 
 app.get('/auth/tiktok/start', (req, res) => {
     const schoolId = String(req.query.school_id || 'wozza-default-school');
-    const tiktokClientKey = env('TIKTOK_CLIENT_KEY') || env('TIKTOK_APP_ID');
+    const tiktokClientKey = env('TIKTOK_SANDBOX_CLIENT_KEY') || env('TIKTOK_CLIENT_KEY') || env('TIKTOK_APP_ID');
     if (!tiktokClientKey) {
         return res.redirect(`/social-monitor?oauth_error=${encodeURIComponent('TIKTOK_CLIENT_KEY não configurado no .env')}&platform=TIKTOK`);
     }
@@ -1298,7 +1298,7 @@ app.get('/auth/tiktok/callback', async (req, res) => {
         const tokenRes = await fetchJson('https://open.tiktokapis.com/v2/oauth/token/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ client_key: env('TIKTOK_CLIENT_KEY') || env('TIKTOK_APP_ID'), client_secret: env('TIKTOK_CLIENT_SECRET') || env('TIKTOK_APP_SECRET'), code, grant_type: 'authorization_code', redirect_uri: oauthRedirectUri(req, 'tiktok') })
+            body: new URLSearchParams({ client_key: env('TIKTOK_SANDBOX_CLIENT_KEY') || env('TIKTOK_CLIENT_KEY') || env('TIKTOK_APP_ID'), client_secret: env('TIKTOK_SANDBOX_CLIENT_SECRET') || env('TIKTOK_CLIENT_SECRET') || env('TIKTOK_APP_SECRET'), code, grant_type: 'authorization_code', redirect_uri: oauthRedirectUri(req, 'tiktok') })
         });
         if (!tokenRes.ok) throw new Error(tokenRes.data?.error?.message || 'Falha ao obter token TikTok');
         const { open_id } = tokenRes.data;
