@@ -1285,7 +1285,7 @@ app.get('/auth/tiktok/start', (req, res) => {
         response_type: 'code',
         state: oauthState('TIKTOK', schoolId),
         redirect_uri: oauthRedirectUri(req, 'tiktok'),
-        scope: 'user.info.basic,video.upload'
+        scope: 'user.info.basic,video.list,video.publish,video.upload'
     });
     res.redirect(`https://www.tiktok.com/v2/auth/authorize/?${params}`);
 });
