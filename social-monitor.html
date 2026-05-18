@@ -280,20 +280,26 @@
 
         <section class="content">
             <div class="container-fluid">
-                <ul class="nav nav-tabs mb-3" id="sm-tabs" role="tablist">
-                    <li class="nav-item">
-                        <a class="nav-link active" id="tab-calendario-link" data-toggle="tab" href="#tab-calendario" role="tab"><i class="fas fa-stream mr-2"></i>Feed</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" id="tab-monitor-link" data-toggle="tab" href="#tab-monitor" role="tab"><i class="fas fa-shield-alt mr-2"></i>Monitoramento</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" id="tab-canais-link" data-toggle="tab" href="#tab-canais" role="tab"><i class="fas fa-link mr-2"></i>Canais</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" id="tab-publicar-link" data-toggle="tab" href="#tab-publicar" role="tab"><i class="fas fa-paper-plane mr-2"></i>Criar postagem</a>
-                    </li>
-                </ul>
+                <div class="d-flex align-items-center justify-content-between flex-wrap mb-2" style="gap:.5rem;">
+                    <ul class="nav nav-tabs flex-grow-1" id="sm-tabs" role="tablist" style="border-bottom:none;">
+                        <li class="nav-item">
+                            <a class="nav-link active" id="tab-calendario-link" data-toggle="tab" href="#tab-calendario" role="tab"><i class="fas fa-stream mr-2"></i>Feed</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="tab-monitor-link" data-toggle="tab" href="#tab-monitor" role="tab"><i class="fas fa-shield-alt mr-2"></i>Monitoramento</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="tab-canais-link" data-toggle="tab" href="#tab-canais" role="tab"><i class="fas fa-link mr-2"></i>Canais</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="tab-publicar-link" data-toggle="tab" href="#tab-publicar" role="tab"><i class="fas fa-paper-plane mr-2"></i>Criar postagem</a>
+                        </li>
+                    </ul>
+                    <button class="btn btn-success btn-sm flex-shrink-0" id="sm-sync-all-btn" title="Sincronizar todas as redes conectadas">
+                        <i class="fas fa-sync-alt mr-1"></i>Sincronizar tudo
+                    </button>
+                </div>
+                <div style="border-bottom:1px solid #dee2e6; margin-bottom:1rem;"></div>
                 <div class="tab-content" id="sm-tabs-content">
                 <div class="tab-pane fade" id="tab-monitor" role="tabpanel">
                 <div class="social-hero">
@@ -1066,12 +1072,47 @@ $(document).ready(async function() {
     $('#sm-config-modal').on('shown.bs.modal', function() {
         const platform = String($('#sm-config-platform').val() || '').toUpperCase();
         if (platform) renderOAuthSection(platform);
-        // Mostrar botão de sincronização para Instagram e Facebook
-        const showSync = ['INSTAGRAM', 'FACEBOOK'].includes(platform);
+        // Mostrar botão de sincronização para todas as redes suportadas
+        const showSync = ['INSTAGRAM', 'FACEBOOK', 'TIKTOK'].includes(platform);
         $('#sm-sync-posts-btn').toggle(showSync);
     });
 
-    // Sincronizar posts
+    // Sincronizar tudo — botão global
+    async function syncAllPlatforms(silent) {
+        const schoolId = sessionStorage.getItem('SCHOOL_ID') || 'wozza-default-school';
+        const btn = $('#sm-sync-all-btn');
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Sincronizando...');
+        let totalSynced = 0, warnings = [];
+        const platforms = ['INSTAGRAM', 'FACEBOOK', 'TIKTOK'];
+        for (const plat of platforms) {
+            try {
+                const res = await fetch('/api/social/sync-posts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ school_id: schoolId, platform: plat })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    totalSynced += data.synced || 0;
+                    if (data.warnings?.length) warnings.push(...data.warnings);
+                }
+            } catch (_) {}
+        }
+        btn.prop('disabled', false).html('<i class="fas fa-sync-alt mr-1"></i>Sincronizar tudo');
+        if (!silent) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Sincronização concluída!',
+                text: `${totalSynced} posts sincronizados.${warnings.length ? '\n⚠️ ' + warnings[0] : ''}`,
+                confirmButtonText: 'OK'
+            }).then(() => { if (typeof loadMonitor === 'function') loadMonitor(); });
+        } else {
+            if (typeof loadMonitor === 'function') loadMonitor();
+        }
+    }
+    $('#sm-sync-all-btn').on('click', function() { syncAllPlatforms(false); });
+
+    // Sincronizar posts (modal — plataforma específica)
     $('#sm-sync-posts-btn').on('click', async function() {
         const platform = String($('#sm-config-platform').val() || '').toUpperCase();
         const schoolId = sessionStorage.getItem('SCHOOL_ID') || 'wozza-default-school';
@@ -1111,13 +1152,14 @@ $(document).ready(async function() {
     if (oauthOk) {
         // Limpar query string sem reload
         history.replaceState({}, '', window.location.pathname);
+        // Sincroniza automaticamente após conexão OAuth
+        syncAllPlatforms(true);
         Swal.fire({
             icon: 'success',
-            title: 'Conectado!',
-            text: `${oauthOk} conectado com sucesso.`,
-            confirmButtonText: 'OK'
-        }).then(() => {
-            if (typeof loadMonitor === 'function') loadMonitor();
+            title: `${oauthOk} conectado!`,
+            text: 'Sincronizando posts automaticamente...',
+            timer: 2500,
+            showConfirmButton: false
         });
     } else if (oauthError) {
         history.replaceState({}, '', window.location.pathname);
