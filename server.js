@@ -3,7 +3,7 @@ const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
 const { put } = require('@vercel/blob');
-const { handleUpload } = require('@vercel/blob/client');
+const { generateClientTokenFromReadWriteToken } = require('@vercel/blob/client');
 const db = require('./db');
 
 const app = express();
@@ -2371,25 +2371,27 @@ app.post('/api/social/upload-image', async (req, res) => {
     }
 });
 
-app.post('/api/blob/handle-video-upload', async (req, res) => {
+app.post('/api/blob/video-token', async (req, res) => {
     try {
         const user = await requireCurrentUser(req);
         if (!user) return res.status(401).json({ error: 'Não autenticado' });
         if (!blobUploadsEnabled()) return res.status(503).json({ error: 'Upload não configurado. Defina BLOB_READ_WRITE_TOKEN.' });
 
-        const response = await handleUpload({
-            body: req.body,
-            request: req,
-            onBeforeGenerateToken: async () => ({
-                allowedContentTypes: ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/mpeg'],
-                maximumSizeInBytes: 500 * 1024 * 1024,
-                addRandomSuffix: false,
-            }),
-            onUploadCompleted: async () => {},
+        const body = req.body || {};
+        const safeName = String(body.filename || 'video.mp4').replace(/[^a-zA-Z0-9._-]/g, '_');
+        const pathname = `video-${Date.now()}-${safeName}`;
+
+        const clientToken = await generateClientTokenFromReadWriteToken({
+            token: env('BLOB_READ_WRITE_TOKEN'),
+            pathname,
+            allowedContentTypes: ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/mpeg'],
+            maximumSizeInBytes: 500 * 1024 * 1024,
+            addRandomSuffix: false,
         });
-        return res.json(response);
+
+        return res.json({ clientToken, pathname });
     } catch (err) {
-        return res.status(400).json({ error: err.message });
+        return res.status(500).json({ error: err.message });
     }
 });
 

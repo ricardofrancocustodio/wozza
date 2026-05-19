@@ -754,22 +754,16 @@ async function uploadVideoToYouTube(title, description, file) {
 }
 
 async function uploadVideoToBlob(file, onProgress) {
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const pathname = `videos/${Date.now()}-${safeName}`;
-
-    // 1. Obter client token do servidor
-    const tokenRes = await fetch('/api/blob/handle-video-upload', {
+    // 1. Servidor gera o pathname e o clientToken juntos — garante que batem no JWT
+    const tokenRes = await fetch('/api/blob/video-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            type: 'blob.generate-client-token',
-            payload: { pathname, callbackUrl: null, multipart: false, clientPayload: null }
-        })
+        body: JSON.stringify({ filename: file.name })
     });
     const tokenData = await tokenRes.json();
     if (!tokenRes.ok) throw new Error(tokenData.error || 'Falha ao obter token de upload');
-    const clientToken = tokenData.clientToken;
-    if (!clientToken) throw new Error('Token de upload invalido. Verifique BLOB_READ_WRITE_TOKEN no servidor.');
+    const { clientToken, pathname } = tokenData;
+    if (!clientToken || !pathname) throw new Error('Resposta de token invalida. Verifique BLOB_READ_WRITE_TOKEN no servidor.');
 
     // 2. PUT direto ao Vercel Blob API com progresso via XHR
     const blobUrl = await new Promise((resolve, reject) => {
@@ -790,7 +784,7 @@ async function uploadVideoToBlob(file, onProgress) {
                 reject(new Error(`Storage rejeitou o video (${xhr.status}): ${xhr.responseText?.slice(0, 200)}`));
             }
         };
-        xhr.onerror = () => reject(new Error(`Falha de rede ao enviar video para Vercel Blob. Abra o console do navegador (F12) para detalhes.`));
+        xhr.onerror = () => reject(new Error('Falha de rede ao enviar video. Abra F12 > Console para detalhes.'));
         xhr.send(file);
     });
 
