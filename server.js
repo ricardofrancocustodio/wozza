@@ -1548,11 +1548,193 @@ app.get('/auth/linkedin/callback', async (req, res) => {
     }
 });
 
+// ─── OAuth — YouTube ──────────────────────────────────────────────────────────
+
+async function refreshYouTubeToken(schoolId, credentials) {
+    if (!credentials.refresh_token) throw new Error('Refresh token do YouTube não disponível. Reconecte o canal.');
+    const res = await fetchJson('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            client_id: env('GOOGLE_CLIENT_ID'),
+            client_secret: env('GOOGLE_CLIENT_SECRET'),
+            refresh_token: credentials.refresh_token,
+            grant_type: 'refresh_token'
+        })
+    });
+    if (!res.ok) throw new Error(res.data?.error_description || 'Falha ao renovar token do YouTube');
+    const updated = { ...credentials, access_token: res.data.access_token, token_expires_at: Date.now() + (res.data.expires_in * 1000) };
+    await db.upsertConfig(schoolId, 'YOUTUBE', { credentials_encrypted: encryptSocialCredentials(updated) });
+    return updated.access_token;
+}
+
+async function getYouTubeAccessToken(schoolId) {
+    const config = await db.getConfig(schoolId, 'YOUTUBE');
+    if (!config?.credentials_encrypted) throw new Error('Canal YouTube não conectado');
+    const creds = decryptSocialCredentials(config.credentials_encrypted);
+    if (Date.now() < (creds.token_expires_at || 0) - 60000) return creds.access_token;
+    return refreshYouTubeToken(schoolId, creds);
+}
+
+app.get('/auth/youtube/start', (req, res) => {
+    const clientId = env('GOOGLE_CLIENT_ID');
+    if (!clientId) return res.redirect(`/social-monitor?oauth_error=${encodeURIComponent('GOOGLE_CLIENT_ID não configurado')}&platform=YOUTUBE`);
+    const schoolId = String(req.query.school_id || 'wozza-default-school');
+    const params = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: oauthRedirectUri(req, 'youtube'),
+        response_type: 'code',
+        scope: 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly',
+        access_type: 'offline',
+        prompt: 'consent',
+        state: oauthState('YOUTUBE', schoolId)
+    });
+    res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+});
+
+app.get('/auth/youtube/callback', async (req, res) => {
+    const { code, state, error } = req.query;
+    if (error || !code) return res.redirect(`/social-monitor?oauth_error=${encodeURIComponent(error || 'Código ausente')}&platform=YOUTUBE`);
+    const { schoolId } = parseOAuthState(state);
+    try {
+        const tokenRes = await fetchJson('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                client_id: env('GOOGLE_CLIENT_ID'),
+                client_secret: env('GOOGLE_CLIENT_SECRET'),
+                code,
+                grant_type: 'authorization_code',
+                redirect_uri: oauthRedirectUri(req, 'youtube')
+            })
+        });
+        if (!tokenRes.ok) throw new Error(tokenRes.data?.error_description || 'Falha ao autenticar com Google/YouTube');
+
+        const { access_token, refresh_token, expires_in } = tokenRes.data;
+        const channelRes = await fetchJson('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
+            headers: { Authorization: `Bearer ${access_token}` }
+        });
+        const channel = channelRes.data?.items?.[0];
+        if (!channel) throw new Error('Nenhum canal YouTube encontrado nesta conta Google');
+
+        await db.upsertConfig(schoolId, 'YOUTUBE', {
+            enabled: true,
+            connection_status: 'CONNECTED',
+            account_label: channel.snippet.title,
+            credentials_encrypted: encryptSocialCredentials({
+                access_token,
+                refresh_token,
+                token_expires_at: Date.now() + (expires_in * 1000)
+            }),
+            credentials_present: JSON.stringify({ access_token: true, refresh_token: !!refresh_token }),
+            metadata: JSON.stringify({
+                channel_id: channel.id,
+                channel_title: channel.snippet.title,
+                channel_thumbnail: channel.snippet.thumbnails?.default?.url || null
+            })
+        });
+
+        res.redirect(`/social-monitor?oauth_ok=YOUTUBE&school_id=${encodeURIComponent(schoolId)}`);
+    } catch (err) {
+        console.error('YouTube OAuth error:', err);
+        res.redirect(`/social-monitor?oauth_error=${encodeURIComponent(err.message)}&platform=YOUTUBE`);
+    }
+});
+
+app.post('/api/social/youtube/init-upload', async (req, res) => {
+    try {
+        const user = await requireCurrentUser(req);
+        if (!user) return res.status(401).json({ error: 'Não autenticado' });
+
+        const body = req.body || {};
+        const schoolId = String(body.school_id || '').trim();
+        if (!schoolId || schoolId !== user.school_id) return res.status(403).json({ error: 'school_id inválido' });
+
+        const title = String(body.title || 'Novo vídeo').trim().slice(0, 100);
+        const description = String(body.description || '').trim();
+        const mimeType = String(body.mime_type || 'video/mp4').trim();
+        const fileSize = Number(body.file_size || 0);
+        const isShort = !!body.is_short;
+
+        if (!fileSize) return res.status(400).json({ error: 'file_size é obrigatório' });
+
+        const accessToken = await getYouTubeAccessToken(schoolId);
+        const finalDescription = isShort ? `${description}\n\n#Shorts`.trim() : description;
+
+        const uploadRes = await fetch(
+            'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
+            {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                    'X-Upload-Content-Type': mimeType,
+                    'X-Upload-Content-Length': String(fileSize)
+                },
+                body: JSON.stringify({
+                    snippet: { title, description: finalDescription, categoryId: '22' },
+                    status: { privacyStatus: 'public', selfDeclaredMadeForKids: false }
+                })
+            }
+        );
+
+        if (!uploadRes.ok) {
+            const errText = await uploadRes.text();
+            throw new Error(`YouTube recusou o upload: ${errText.slice(0, 200)}`);
+        }
+
+        const uploadUri = uploadRes.headers.get('location');
+        if (!uploadUri) throw new Error('YouTube não retornou o URI de upload');
+
+        return res.json({ upload_uri: uploadUri });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/social/youtube/finalize-upload', async (req, res) => {
+    try {
+        const user = await requireCurrentUser(req);
+        if (!user) return res.status(401).json({ error: 'Não autenticado' });
+
+        const body = req.body || {};
+        const schoolId = String(body.school_id || '').trim();
+        const videoId = String(body.video_id || '').trim();
+        const title = String(body.title || '').trim();
+
+        if (!schoolId || schoolId !== user.school_id) return res.status(403).json({ error: 'school_id inválido' });
+        if (!videoId) return res.status(400).json({ error: 'video_id é obrigatório' });
+
+        const post = await db.upsertSyncedPost({
+            school_id: schoolId,
+            platform: 'YOUTUBE',
+            external_id: videoId,
+            content: title,
+            media_url: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+            thumbnail_url: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+            permalink: `https://www.youtube.com/shorts/${videoId}`,
+            media_type: 'VIDEO',
+            like_count: 0,
+            comments_count: 0,
+            account_username: '',
+            account_avatar: null,
+            published_at: new Date().toISOString(),
+            media: { type: 'VIDEO', url: `https://www.youtube.com/shorts/${videoId}` },
+            results: [{ platform: 'YOUTUBE', externalId: videoId, success: true, source: 'publish' }]
+        });
+
+        return res.json({ ok: true, video_id: videoId, permalink: `https://www.youtube.com/shorts/${videoId}`, post });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/api/oauth/status', (req, res) => {
     res.json({
         meta:     !!(env('META_APP_ID') && env('META_APP_SECRET')),
         tiktok:   !!((env('TIKTOK_CLIENT_KEY') || env('TIKTOK_APP_ID')) && (env('TIKTOK_CLIENT_SECRET') || env('TIKTOK_APP_SECRET'))),
-        linkedin: !!(env('LINKEDIN_CLIENT_ID') && env('LINKEDIN_CLIENT_SECRET'))
+        linkedin: !!(env('LINKEDIN_CLIENT_ID') && env('LINKEDIN_CLIENT_SECRET')),
+        youtube:  !!(env('GOOGLE_CLIENT_ID') && env('GOOGLE_CLIENT_SECRET'))
     });
 });
 

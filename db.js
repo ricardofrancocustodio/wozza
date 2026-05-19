@@ -281,7 +281,7 @@ async function ensureSchema() {
 
 // ─── Channel configs ──────────────────────────────────────────────────────────
 
-const PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'TIKTOK', 'LINKEDIN'];
+const PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'TIKTOK', 'LINKEDIN', 'YOUTUBE'];
 
 async function ensureAllSocialPlatforms(schoolId) {
     for (const platform of PLATFORMS) {

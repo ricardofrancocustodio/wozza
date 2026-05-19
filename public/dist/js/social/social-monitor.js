@@ -22,6 +22,7 @@ function platformLabel(platform) {
     if (key === 'FACEBOOK') return 'Facebook';
     if (key === 'TIKTOK') return 'TikTok';
     if (key === 'LINKEDIN') return 'LinkedIn';
+    if (key === 'YOUTUBE') return 'YouTube';
     return key || '-';
 }
 
@@ -115,6 +116,7 @@ function buildAuthorProfileUrl(item) {
     if (platform === 'FACEBOOK') return `https://www.facebook.com/${h}`;
     if (platform === 'TIKTOK') return `https://www.tiktok.com/@${h}`;
     if (platform === 'LINKEDIN') return `https://www.linkedin.com/in/${h}`;
+    if (platform === 'YOUTUBE') return `https://www.youtube.com/@${h}`;
     return null;
 }
 
@@ -214,7 +216,8 @@ function toggleConfigFieldsByPlatform(platform) {
         INSTAGRAM: 'fab fa-instagram',
         FACEBOOK: 'fab fa-facebook',
         TIKTOK: 'fab fa-tiktok',
-        LINKEDIN: 'fab fa-linkedin'
+        LINKEDIN: 'fab fa-linkedin',
+        YOUTUBE: 'fab fa-youtube'
     };
     badge.html(`<i class="${iconMap[current] || 'fas fa-link'}"></i><span>${escapeHtml(platformLabel(current))}</span>`);
 }
@@ -520,6 +523,13 @@ function postMediaType() {
     return $('#sm-post-type-video').hasClass('active') ? 'video' : 'image';
 }
 
+function updateVideoSectionVisibility() {
+    const youtubeChecked = $('#sm-post-net-youtube').is(':checked');
+    const othersChecked = $('.sm-post-network-check:checked').not('#sm-post-net-youtube').length > 0;
+    $('#sm-post-video-file-section').toggle(youtubeChecked);
+    $('#sm-post-video-url-section').toggle(othersChecked || !youtubeChecked);
+}
+
 function switchPostMediaType(type) {
     if (type === 'video') {
         $('#sm-post-image-section').hide();
@@ -533,6 +543,7 @@ function switchPostMediaType(type) {
         $('#sm-post-type-image').removeClass('btn-outline-primary').addClass('btn-primary active');
     }
     renderPostNetworkCheckboxes(socialState.configs);
+    updateVideoSectionVisibility();
 }
 
 function renderPostNetworkCheckboxes(configs) {
@@ -554,13 +565,13 @@ function renderPostNetworkCheckboxes(configs) {
         const platform = escapeHtml(cfg.platform || '');
         const label = escapeHtml(platformLabel(cfg.platform));
         const id = `sm-post-net-${platform.toLowerCase()}`;
-        const tiktokImageMode = platform === 'TIKTOK' && !isVideo;
-        const disabled = tiktokImageMode ? 'disabled' : '';
-        const title = tiktokImageMode ? 'title="TikTok só aceita vídeo. Mude para o modo Vídeo."' : '';
+        const videoOnly = (platform === 'TIKTOK' || platform === 'YOUTUBE') && !isVideo;
+        const disabled = videoOnly ? 'disabled' : '';
+        const titleAttr = videoOnly ? `title="${platformLabel(platform)} só aceita vídeo. Mude para o modo Vídeo."` : '';
         container.append(`
-            <div class="custom-control custom-checkbox" ${title}>
-                <input type="checkbox" class="custom-control-input sm-post-network-check" id="${id}" value="${platform}" ${tiktokImageMode ? '' : 'checked'} ${disabled}>
-                <label class="custom-control-label${tiktokImageMode ? ' text-muted' : ''}" for="${id}">${label}${tiktokImageMode ? ' <small>(só vídeo)</small>' : ''}</label>
+            <div class="custom-control custom-checkbox" ${titleAttr}>
+                <input type="checkbox" class="custom-control-input sm-post-network-check" id="${id}" value="${platform}" ${videoOnly ? '' : 'checked'} ${disabled}>
+                <label class="custom-control-label${videoOnly ? ' text-muted' : ''}" for="${id}">${label}${videoOnly ? ' <small>(só vídeo)</small>' : ''}</label>
             </div>
         `);
     });
@@ -694,11 +705,63 @@ async function uploadSelectedPostImage(file) {
     setPostUploadStatus('Imagem enviada com sucesso. A URL pública foi preenchida automaticamente.', 'success');
 }
 
+async function uploadVideoToYouTube(title, description, file) {
+    const initRes = await fetch('/api/social/youtube/init-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            school_id: socialState.schoolId,
+            title,
+            description,
+            mime_type: file.type || 'video/mp4',
+            file_size: file.size,
+            is_short: true
+        })
+    });
+    const initBody = await initRes.json();
+    if (!initRes.ok) throw new Error(initBody?.error || 'Falha ao iniciar upload no YouTube');
+
+    const uploadUri = initBody.upload_uri;
+
+    const videoId = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', uploadUri);
+        xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+                const pct = Math.round(e.loaded / e.total * 100);
+                $('#sm-post-video-progress-bar').css('width', `${pct}%`).text(`${pct}%`);
+                $('#sm-post-video-progress-text').text(`Enviando para YouTube... ${pct}%`);
+            }
+        };
+        xhr.onload = () => {
+            if (xhr.status === 200 || xhr.status === 201) {
+                try { resolve(JSON.parse(xhr.responseText).id); }
+                catch { reject(new Error('Resposta inválida do YouTube após upload')); }
+            } else {
+                reject(new Error(`YouTube rejeitou o vídeo (status ${xhr.status})`));
+            }
+        };
+        xhr.onerror = () => reject(new Error('Falha de rede ao enviar para YouTube'));
+        xhr.send(file);
+    });
+
+    const finalRes = await fetch('/api/social/youtube/finalize-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ school_id: socialState.schoolId, video_id: videoId, title })
+    });
+    const finalBody = await finalRes.json();
+    if (!finalRes.ok) throw new Error(finalBody?.error || 'Falha ao finalizar publicação no YouTube');
+    return finalBody;
+}
+
 async function publicarNasRedes() {
     const texto = String($('#sm-post-text').val() || '').trim();
     const isVideo = postMediaType() === 'video';
     const imageUrl = isVideo ? '' : String($('#sm-post-image-url').val() || '').trim();
     const videoUrl = isVideo ? String($('#sm-post-video-url').val() || '').trim() : '';
+    const videoFile = isVideo ? ($('#sm-post-video-file')[0]?.files?.[0] || null) : null;
 
     if (!texto) {
         Swal.fire('Atenção', 'Escreva o texto da postagem antes de publicar.', 'warning');
@@ -714,51 +777,68 @@ async function publicarNasRedes() {
         return;
     }
 
-    if (isVideo) {
-        if (!videoUrl) {
-            Swal.fire('Atenção', 'Informe a URL pública do vídeo (.mp4) antes de continuar.', 'warning');
-            return;
-        }
-        if (!/^https?:\///i.test(videoUrl)) {
-            Swal.fire('Atenção', 'A URL do vídeo precisa começar com http:// ou https://.', 'warning');
-            return;
-        }
-    } else {
-        if (destinos.includes('INSTAGRAM') && !imageUrl) {
-            Swal.fire('Atenção', 'Para publicar no Instagram, envie uma imagem antes de continuar.', 'warning');
-            return;
-        }
+    const youtubeSelected = destinos.includes('YOUTUBE');
+    const outrasRedes = destinos.filter(d => d !== 'YOUTUBE');
+
+    if (isVideo && youtubeSelected && !videoFile) {
+        Swal.fire('Atenção', 'Selecione um arquivo de vídeo para publicar no YouTube.', 'warning');
+        return;
+    }
+    if (isVideo && outrasRedes.length && !videoUrl) {
+        Swal.fire('Atenção', 'Informe a URL pública do vídeo para as outras redes.', 'warning');
+        return;
+    }
+    if (!isVideo && destinos.includes('INSTAGRAM') && !imageUrl) {
+        Swal.fire('Atenção', 'Para publicar no Instagram, envie uma imagem antes de continuar.', 'warning');
+        return;
     }
 
     const btn = $('#sm-post-submit-btn');
     btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Publicando...');
 
-    const media = isVideo
-        ? { video_url: videoUrl, url: videoUrl, type: 'VIDEO' }
-        : (imageUrl ? { image_url: imageUrl, url: imageUrl, type: 'IMAGE' } : null);
+    const resultado = {};
+    let anyPost = null;
 
     try {
-        const res = await fetch('/api/social/post-multi', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-school-id': socialState.schoolId
-            },
-            body: JSON.stringify({
-                school_id: socialState.schoolId,
-                conteudo: { text: texto, media },
-                destinos
-            })
-        });
-        const body = await res.json();
-        if (!res.ok) throw new Error(body?.error || 'Falha ao publicar.');
+        if (youtubeSelected && isVideo && videoFile) {
+            $('#sm-post-video-progress-wrap').show();
+            $('#sm-post-video-progress-bar').css('width', '0%').text('0%');
+            try {
+                const ytResult = await uploadVideoToYouTube(texto.slice(0, 100), texto, videoFile);
+                resultado['YOUTUBE'] = { success: true, permalink: ytResult.permalink };
+                if (ytResult.post) anyPost = ytResult.post;
+            } catch (err) {
+                resultado['YOUTUBE'] = { success: false, error: err.message };
+            }
+            $('#sm-post-video-progress-wrap').hide();
+        }
 
-        renderPostResult(body.resultado || {});
+        if (outrasRedes.length || (!youtubeSelected && !isVideo)) {
+            const media = isVideo
+                ? (videoUrl ? { video_url: videoUrl, url: videoUrl, type: 'VIDEO' } : null)
+                : (imageUrl ? { image_url: imageUrl, url: imageUrl, type: 'IMAGE' } : null);
 
-        if (body.post) {
+            const destinosFiltrados = isVideo ? outrasRedes : destinos;
+            if (destinosFiltrados.length) {
+                const res = await fetch('/api/social/post-multi', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-school-id': socialState.schoolId },
+                    body: JSON.stringify({ school_id: socialState.schoolId, conteudo: { text: texto, media }, destinos: destinosFiltrados })
+                });
+                const body = await res.json();
+                if (!res.ok) throw new Error(body?.error || 'Falha ao publicar.');
+                Object.assign(resultado, body.resultado || {});
+                if (body.post && !anyPost) anyPost = body.post;
+            }
+        }
+
+        renderPostResult(resultado);
+
+        if (anyPost) {
             $('#sm-post-text').val('');
             $('#sm-post-image-url').val('');
             $('#sm-post-video-url').val('');
+            $('#sm-post-video-file').val('');
             $('#sm-post-char-count').text('0');
             resetPostImageUploadUi();
             await feedFetchMonth(calState.viewYear, calState.viewMonth);
@@ -1791,6 +1871,7 @@ $(document).ready(async function() {
     $('#sm-post-media-type-group').on('click', 'button[data-type]', function() {
         switchPostMediaType($(this).data('type'));
     });
+    $(document).on('change', '.sm-post-network-check', updateVideoSectionVisibility);
     $('#sm-post-text').on('input', function() {
         $('#sm-post-char-count').text($(this).val().length);
     });
