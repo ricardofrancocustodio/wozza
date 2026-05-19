@@ -636,21 +636,16 @@
                                         </div>
                                     </div>
                                     <div class="form-group" id="sm-post-video-section" style="display:none;">
-                                        <div id="sm-post-video-file-section" style="display:none;">
-                                            <label for="sm-post-video-file">Arquivo de vídeo (YouTube Shorts)</label>
+                                        <div id="sm-post-video-file-section">
+                                            <label for="sm-post-video-file">Arquivo de vídeo</label>
                                             <input id="sm-post-video-file" type="file" class="form-control-file" accept="video/mp4,video/quicktime,video/x-msvideo,video/webm">
-                                            <small class="text-muted d-block">MP4 ou MOV. Vertical (9:16). Até 3 minutos para Shorts.</small>
+                                            <small class="text-muted d-block">MP4 ou MOV. YouTube: vertical (9:16), até 3 min. Instagram Reels: até 90 seg.</small>
                                             <div id="sm-post-video-progress-wrap" style="display:none;" class="mt-2">
                                                 <div class="progress" style="height:20px;">
                                                     <div id="sm-post-video-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width:0%">0%</div>
                                                 </div>
                                                 <small id="sm-post-video-progress-text" class="text-muted">Preparando...</small>
                                             </div>
-                                        </div>
-                                        <div id="sm-post-video-url-section">
-                                            <label for="sm-post-video-url" class="mt-2">URL pública do vídeo (.mp4) — TikTok / Reels</label>
-                                            <input id="sm-post-video-url" type="url" class="form-control" placeholder="https://exemplo.com/video.mp4">
-                                            <small class="text-muted d-block">Para Instagram Reels e TikTok. O vídeo precisa ser acessível via HTTPS.</small>
                                         </div>
                                     </div>
                                     <div class="form-group mb-4">
@@ -1306,5 +1301,9 @@ $(document).ready(async function() {
 });
 </script>
 <script src="/dist/js/theme.js"></script>
+<script type="module">
+import { upload } from 'https://esm.sh/@vercel/blob/client@2.3.3';
+window.blobClientUpload = upload;
+</script>
 </body>
 </html>

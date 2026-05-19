@@ -524,10 +524,7 @@ function postMediaType() {
 }
 
 function updateVideoSectionVisibility() {
-    const youtubeChecked = $('#sm-post-net-youtube').is(':checked');
-    const othersChecked = $('.sm-post-network-check:checked').not('#sm-post-net-youtube').length > 0;
-    $('#sm-post-video-file-section').toggle(youtubeChecked);
-    $('#sm-post-video-url-section').toggle(othersChecked || !youtubeChecked);
+    $('#sm-post-video-file-section').show();
 }
 
 function switchPostMediaType(type) {
@@ -756,11 +753,28 @@ async function uploadVideoToYouTube(title, description, file) {
     return finalBody;
 }
 
+async function uploadVideoToBlob(file, onProgress) {
+    if (!window.blobClientUpload) throw new Error('Modulo de upload nao carregado. Recarregue a pagina.');
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const blob = await window.blobClientUpload(
+        `videos/${Date.now()}-${safeName}`,
+        file,
+        {
+            access: 'public',
+            handleUploadUrl: '/api/blob/handle-video-upload',
+            onUploadProgress: ({ percentage }) => {
+                if (onProgress) onProgress(Math.round(percentage));
+            }
+        }
+    );
+    return blob.url;
+}
+
 async function publicarNasRedes() {
     const texto = String($('#sm-post-text').val() || '').trim();
     const isVideo = postMediaType() === 'video';
     const imageUrl = isVideo ? '' : String($('#sm-post-image-url').val() || '').trim();
-    const videoUrl = isVideo ? String($('#sm-post-video-url').val() || '').trim() : '';
+    const videoUrl = '';
     const videoFile = isVideo ? ($('#sm-post-video-file')[0]?.files?.[0] || null) : null;
     const enableSchedule = $('#sm-schedule-enable').is(':checked');
     const scheduledFor = String($('#sm-schedule-datetime').val() || '').trim();
@@ -794,12 +808,24 @@ async function publicarNasRedes() {
             return;
         }
         const platform = destinos[0];
-        const mediaUrl = isVideo ? videoUrl : imageUrl;
         const mediaType = isVideo ? 'VIDEO' : 'IMAGE';
 
         const btn = $('#sm-post-submit-btn');
         btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Agendando...');
         try {
+            let mediaUrl = isVideo ? null : imageUrl;
+
+            if (isVideo && videoFile) {
+                $('#sm-post-video-progress-wrap').show();
+                $('#sm-post-video-progress-bar').css('width', '0%').text('0%');
+                $('#sm-post-video-progress-text').text('Enviando vídeo...');
+                mediaUrl = await uploadVideoToBlob(videoFile, (pct) => {
+                    $('#sm-post-video-progress-bar').css('width', `${pct}%`).text(`${pct}%`);
+                    $('#sm-post-video-progress-text').text(`Enviando vídeo... ${pct}%`);
+                });
+                $('#sm-post-video-progress-wrap').hide();
+            }
+
             const res = await fetch('/api/social/schedule-post', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -817,7 +843,7 @@ async function publicarNasRedes() {
             Swal.fire('Agendado!', `Post agendado para ${new Date(scheduledFor).toLocaleString('pt-BR')} em ${platform}.`, 'success');
             $('#sm-post-text').val('');
             $('#sm-post-image-url').val('');
-            $('#sm-post-video-url').val('');
+            $('#sm-post-video-file').val('');
             $('#sm-post-char-count').text('0');
             resetPostImageUploadUi();
         } catch (err) {
@@ -831,12 +857,8 @@ async function publicarNasRedes() {
     const youtubeSelected = destinos.includes('YOUTUBE');
     const outrasRedes = destinos.filter(d => d !== 'YOUTUBE');
 
-    if (isVideo && youtubeSelected && !videoFile) {
-        Swal.fire('Atenção', 'Selecione um arquivo de vídeo para publicar no YouTube.', 'warning');
-        return;
-    }
-    if (isVideo && outrasRedes.length && !videoUrl) {
-        Swal.fire('Atenção', 'Informe a URL pública do vídeo para as outras redes.', 'warning');
+    if (isVideo && !videoFile) {
+        Swal.fire('Atenção', 'Selecione um arquivo de vídeo antes de publicar.', 'warning');
         return;
     }
     if (!isVideo && destinos.includes('INSTAGRAM') && !imageUrl) {
@@ -851,9 +873,10 @@ async function publicarNasRedes() {
     let anyPost = null;
 
     try {
-        if (youtubeSelected && isVideo && videoFile) {
+        if (isVideo && youtubeSelected && videoFile) {
             $('#sm-post-video-progress-wrap').show();
             $('#sm-post-video-progress-bar').css('width', '0%').text('0%');
+            $('#sm-post-video-progress-text').text('Enviando para YouTube...');
             try {
                 const ytResult = await uploadVideoToYouTube(texto.slice(0, 100), texto, videoFile);
                 resultado['YOUTUBE'] = { success: true, permalink: ytResult.permalink };
@@ -864,23 +887,33 @@ async function publicarNasRedes() {
             $('#sm-post-video-progress-wrap').hide();
         }
 
-        if (outrasRedes.length || (!youtubeSelected && !isVideo)) {
+        if (outrasRedes.length) {
+            let mediaUrl = null;
+
+            if (isVideo && videoFile) {
+                $('#sm-post-video-progress-wrap').show();
+                $('#sm-post-video-progress-bar').css('width', '0%').text('0%');
+                $('#sm-post-video-progress-text').text('Enviando vídeo...');
+                mediaUrl = await uploadVideoToBlob(videoFile, (pct) => {
+                    $('#sm-post-video-progress-bar').css('width', `${pct}%`).text(`${pct}%`);
+                    $('#sm-post-video-progress-text').text(`Enviando vídeo... ${pct}%`);
+                });
+                $('#sm-post-video-progress-wrap').hide();
+            }
+
             const media = isVideo
-                ? (videoUrl ? { video_url: videoUrl, url: videoUrl, type: 'VIDEO' } : null)
+                ? (mediaUrl ? { video_url: mediaUrl, url: mediaUrl, type: 'VIDEO' } : null)
                 : (imageUrl ? { image_url: imageUrl, url: imageUrl, type: 'IMAGE' } : null);
 
-            const destinosFiltrados = isVideo ? outrasRedes : destinos;
-            if (destinosFiltrados.length) {
-                const res = await fetch('/api/social/post-multi', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'x-school-id': socialState.schoolId },
-                    body: JSON.stringify({ school_id: socialState.schoolId, conteudo: { text: texto, media }, destinos: destinosFiltrados })
-                });
-                const body = await res.json();
-                if (!res.ok) throw new Error(body?.error || 'Falha ao publicar.');
-                Object.assign(resultado, body.resultado || {});
-                if (body.post && !anyPost) anyPost = body.post;
-            }
+            const res = await fetch('/api/social/post-multi', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-school-id': socialState.schoolId },
+                body: JSON.stringify({ school_id: socialState.schoolId, conteudo: { text: texto, media }, destinos: outrasRedes })
+            });
+            const body = await res.json();
+            if (!res.ok) throw new Error(body?.error || 'Falha ao publicar.');
+            Object.assign(resultado, body.resultado || {});
+            if (body.post && !anyPost) anyPost = body.post;
         }
 
         renderPostResult(resultado);
@@ -888,7 +921,6 @@ async function publicarNasRedes() {
         if (anyPost) {
             $('#sm-post-text').val('');
             $('#sm-post-image-url').val('');
-            $('#sm-post-video-url').val('');
             $('#sm-post-video-file').val('');
             $('#sm-post-char-count').text('0');
             resetPostImageUploadUi();

@@ -3,6 +3,7 @@ const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
 const { put } = require('@vercel/blob');
+const { handleUpload } = require('@vercel/blob/client');
 const db = require('./db');
 
 const app = express();
@@ -2367,6 +2368,27 @@ app.post('/api/social/upload-image', async (req, res) => {
         const message = err.message || 'Falha ao enviar imagem';
         const status = /não configurado/i.test(message) ? 503 : 400;
         return res.status(status).json({ error: message });
+    }
+});
+
+app.post('/api/blob/handle-video-upload', async (req, res) => {
+    try {
+        const user = await requireCurrentUser(req);
+        if (!user) return res.status(401).json({ error: 'Não autenticado' });
+        if (!blobUploadsEnabled()) return res.status(503).json({ error: 'Upload não configurado. Defina BLOB_READ_WRITE_TOKEN.' });
+
+        const response = await handleUpload({
+            body: req.body,
+            request: req,
+            onBeforeGenerateToken: async () => ({
+                allowedContentTypes: ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/mpeg'],
+                maximumSizeInBytes: 500 * 1024 * 1024,
+            }),
+            onUploadCompleted: async () => {},
+        });
+        return res.json(response);
+    } catch (err) {
+        return res.status(400).json({ error: err.message });
     }
 });
 
