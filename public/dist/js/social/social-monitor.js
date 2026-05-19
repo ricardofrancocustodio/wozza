@@ -754,20 +754,45 @@ async function uploadVideoToYouTube(title, description, file) {
 }
 
 async function uploadVideoToBlob(file, onProgress) {
-    if (!window.blobClientUpload) throw new Error('Modulo de upload nao carregado. Recarregue a pagina.');
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const blob = await window.blobClientUpload(
-        `videos/${Date.now()}-${safeName}`,
-        file,
-        {
-            access: 'public',
-            handleUploadUrl: '/api/blob/handle-video-upload',
-            onUploadProgress: ({ percentage }) => {
-                if (onProgress) onProgress(Math.round(percentage));
+    const pathname = `videos/${Date.now()}-${safeName}`;
+
+    // 1. Obter client token do servidor (handleUpload flow)
+    const tokenRes = await fetch('/api/blob/handle-video-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            type: 'blob.generate-client-token',
+            payload: { pathname, callbackUrl: null, multipart: false, clientPayload: null }
+        })
+    });
+    const tokenData = await tokenRes.json();
+    if (!tokenRes.ok) throw new Error(tokenData.error || 'Falha ao obter token de upload');
+    const clientToken = tokenData.clientToken;
+
+    // 2. PUT direto ao Vercel Blob com progresso via XHR
+    const blobUrl = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', `https://blob.vercel-storage.com/${pathname}`);
+        xhr.setRequestHeader('Authorization', `Bearer ${clientToken}`);
+        xhr.setRequestHeader('x-mw-token', clientToken);
+        xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable && onProgress) onProgress(Math.round(e.loaded / e.total * 100));
+        };
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try { resolve(JSON.parse(xhr.responseText).url); }
+                catch { reject(new Error('Resposta invalida do storage apos upload')); }
+            } else {
+                reject(new Error(`Storage rejeitou o video (status ${xhr.status})`));
             }
-        }
-    );
-    return blob.url;
+        };
+        xhr.onerror = () => reject(new Error('Falha de rede ao enviar video'));
+        xhr.send(file);
+    });
+
+    return blobUrl;
 }
 
 async function publicarNasRedes() {
