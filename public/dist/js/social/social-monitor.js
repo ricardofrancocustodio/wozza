@@ -1915,6 +1915,168 @@ function calInit() {
     $('#tab-calendario-link').on('shown.bs.tab', feedInit);
 }
 
+// ─── Posts Agendados ──────────────────────────────────────────────────────────
+
+const SCHED_PLATFORM_META = {
+    INSTAGRAM: { label: 'Instagram', icon: 'fab fa-instagram', color: '#E1306C' },
+    FACEBOOK:  { label: 'Facebook',  icon: 'fab fa-facebook',  color: '#1877F2' },
+    TIKTOK:    { label: 'TikTok',    icon: 'fab fa-tiktok',    color: '#010101' },
+    YOUTUBE:   { label: 'YouTube',   icon: 'fab fa-youtube',   color: '#FF0000' },
+};
+
+const SCHED_STATUS_META = {
+    pending:   { label: 'Pendente',  cls: 'badge-info' },
+    published: { label: 'Publicado', cls: 'badge-success' },
+    failed:    { label: 'Falhou',    cls: 'badge-danger' },
+    cancelled: { label: 'Cancelado', cls: 'badge-secondary' },
+};
+
+function schedFormatDate(isoStr) {
+    if (!isoStr) return '—';
+    const d = new Date(isoStr);
+    return d.toLocaleString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function schedCountdown(isoStr) {
+    const diff = new Date(isoStr) - Date.now();
+    if (diff <= 0) return 'Processando...';
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    if (h > 48) {
+        const days = Math.floor(h / 24);
+        return `em ${days} dia${days > 1 ? 's' : ''}`;
+    }
+    if (h > 0) return `em ${h}h ${m}min`;
+    return `em ${m} min`;
+}
+
+function schedRenderCard(post) {
+    const plt = SCHED_PLATFORM_META[post.platform] || { label: post.platform, icon: 'fas fa-globe', color: '#888' };
+    const st  = SCHED_STATUS_META[post.status]   || { label: post.status, cls: 'badge-secondary' };
+    const isPending = post.status === 'pending';
+    const preview = (post.content || '').slice(0, 120) + ((post.content || '').length > 120 ? '…' : '');
+    const mediaIcon = post.media_type === 'VIDEO'
+        ? '<span class="badge badge-dark badge-sm ml-1"><i class="fas fa-video mr-1"></i>Vídeo</span>'
+        : (post.media_url ? '<span class="badge badge-secondary badge-sm ml-1"><i class="fas fa-image mr-1"></i>Imagem</span>' : '');
+
+    return `
+    <div class="card mb-2 sm-sched-card" data-id="${post.id}">
+        <div class="card-body py-2 px-3">
+            <div class="d-flex align-items-start" style="gap:12px;">
+                ${post.media_url && post.media_type !== 'VIDEO'
+                    ? `<img src="${post.media_url}" alt="" class="rounded" style="width:60px;height:60px;object-fit:cover;flex-shrink:0;">`
+                    : `<div class="rounded d-flex align-items-center justify-content-center" style="width:60px;height:60px;background:#f3f4f6;flex-shrink:0;color:#9ca3af;font-size:22px;"><i class="${post.media_type === 'VIDEO' ? 'fas fa-video' : 'fas fa-align-left'}"></i></div>`
+                }
+                <div class="flex-grow-1 min-width-0">
+                    <div class="d-flex align-items-center flex-wrap mb-1" style="gap:6px;">
+                        <i class="${plt.icon}" style="color:${plt.color};font-size:16px;" title="${plt.label}"></i>
+                        <span class="font-weight-bold small">${plt.label}</span>
+                        ${mediaIcon}
+                        <span class="badge ${st.cls} ml-auto">${st.label}</span>
+                    </div>
+                    <div class="small text-muted text-truncate mb-1" style="max-width:100%;" title="${post.content || ''}">${preview || '<em>Sem texto</em>'}</div>
+                    <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+                        <span class="small"><i class="fas fa-calendar-alt mr-1 text-info"></i>${schedFormatDate(post.scheduled_for)}</span>
+                        ${isPending ? `<span class="small text-muted">(${schedCountdown(post.scheduled_for)})</span>` : ''}
+                        ${post.post_id ? `<span class="small text-success"><i class="fas fa-check-circle mr-1"></i>ID: ${post.post_id}</span>` : ''}
+                        ${post.error_message ? `<span class="small text-danger" title="${post.error_message}"><i class="fas fa-exclamation-circle mr-1"></i>${post.error_message.slice(0, 60)}</span>` : ''}
+                    </div>
+                </div>
+                ${isPending ? `<button class="btn btn-sm btn-outline-danger flex-shrink-0 sm-sched-cancel-btn" data-id="${post.id}" data-text="${(preview).replace(/"/g,'&quot;')}" title="Cancelar agendamento">
+                    <i class="fas fa-times"></i>
+                </button>` : ''}
+            </div>
+        </div>
+    </div>`;
+}
+
+async function schedLoad() {
+    const statusFilter = $('#sm-sched-filter-status').val();
+
+    $('#sm-sched-loading').show();
+    $('#sm-sched-empty').hide();
+    $('#sm-sched-list').html('');
+
+    // Busca: passado 7 dias + próximos 30 dias para cobrir publicados/falhos recentes e pendentes
+    const from = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const to   = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    try {
+        const r = await fetch(`/api/social/scheduled-posts?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Erro ao buscar posts agendados');
+
+        let posts = data.posts || [];
+        if (statusFilter) posts = posts.filter(p => p.status === statusFilter);
+
+        // Ordena: pendentes primeiro (por data asc), depois os demais (mais recentes primeiro)
+        posts.sort((a, b) => {
+            if (a.status === 'pending' && b.status !== 'pending') return -1;
+            if (b.status === 'pending' && a.status !== 'pending') return 1;
+            return new Date(a.scheduled_for) - new Date(b.scheduled_for);
+        });
+
+        const pendingCount = posts.filter(p => p.status === 'pending').length;
+        if (pendingCount > 0) {
+            $('#sm-scheduled-badge').text(pendingCount).show();
+        } else {
+            $('#sm-scheduled-badge').hide();
+        }
+
+        $('#sm-sched-loading').hide();
+
+        if (posts.length === 0) {
+            $('#sm-sched-empty').show();
+            return;
+        }
+
+        const html = posts.map(schedRenderCard).join('');
+        $('#sm-sched-list').html(html);
+    } catch (e) {
+        $('#sm-sched-loading').hide();
+        $('#sm-sched-list').html(`<div class="alert alert-danger"><i class="fas fa-exclamation-circle mr-2"></i>${e.message}</div>`);
+    }
+}
+
+function schedInit() {
+    $('#sm-sched-refresh-btn').on('click', schedLoad);
+    $('#sm-sched-filter-status').on('change', schedLoad);
+
+    // Botão cancelar (delegado ao documento pois os cards são dinâmicos)
+    $(document).on('click', '.sm-sched-cancel-btn', async function() {
+        const id   = $(this).data('id');
+        const text = $(this).data('text') || '';
+        const res  = await Swal.fire({
+            title: 'Cancelar agendamento?',
+            html: `<small class="text-muted">${text}</small>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sim, cancelar',
+            cancelButtonText: 'Voltar',
+            confirmButtonColor: '#d33'
+        });
+        if (!res.isConfirmed) return;
+        try {
+            const r = await fetch(`/api/social/scheduled-posts/${id}`, { method: 'DELETE' });
+            const data = await r.json();
+            if (!r.ok) throw new Error(data.error || 'Erro ao cancelar');
+            Swal.fire({ title: 'Cancelado', text: 'O agendamento foi cancelado.', icon: 'success', timer: 1800, showConfirmButton: false });
+            schedLoad();
+        } catch (e) {
+            Swal.fire('Erro', e.message, 'error');
+        }
+    });
+
+    // Link do empty-state para aba Criar postagem
+    $(document).on('click', '[data-target="#tab-publicar"]', function(e) {
+        e.preventDefault();
+        $('#tab-publicar-link').tab('show');
+    });
+
+    // Carrega ao abrir a aba
+    $('#tab-agendados-link').on('shown.bs.tab', schedLoad);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 $(document).ready(async function() {
@@ -1981,6 +2143,7 @@ $(document).ready(async function() {
     }
 
     calInit();
+    schedInit();
 
     await Promise.all([loadMonitor(), loadReplyConfig()]);
 });
