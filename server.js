@@ -725,6 +725,54 @@ async function publishFacebookPost(config, message, imageUrl) {
     };
 }
 
+// ─── Scheduler ───────────────────────────────────────────────────────────────
+
+async function processDuePosts() {
+    let posts;
+    try {
+        posts = await db.getDuePosts();
+    } catch (err) {
+        console.error('[scheduler] Erro ao buscar posts agendados:', err.message);
+        return;
+    }
+
+    for (const post of posts) {
+        try {
+            const platform = String(post.platform || '').toUpperCase();
+            const config = await db.getConfig(post.school_id, platform);
+            if (!config || String(config.connection_status || '').toUpperCase() !== 'CONNECTED' || !config.enabled) {
+                await db.markScheduledPostFailed(post.id, `Canal ${platform} não está conectado e habilitado`);
+                continue;
+            }
+
+            const isVideo = String(post.media_type || '').toUpperCase() === 'VIDEO';
+            let externalId;
+
+            if (platform === 'INSTAGRAM') {
+                const published = isVideo
+                    ? await publishInstagramReel(config, post.content, post.media_url)
+                    : await publishInstagramImage(config, post.content, post.media_url);
+                externalId = published.id;
+            } else if (platform === 'FACEBOOK') {
+                const published = await publishFacebookPost(config, post.content, post.media_url || null);
+                externalId = published.id;
+            } else if (platform === 'TIKTOK') {
+                const published = await publishTikTokVideo(config, post.content, post.media_url);
+                externalId = published.id;
+            } else {
+                await db.markScheduledPostFailed(post.id, `Plataforma '${platform}' ainda não suportada pelo scheduler`);
+                continue;
+            }
+
+            await db.markScheduledPostPublished(post.id, externalId);
+            console.log(`[scheduler] Post ${post.id} publicado (${platform}) — external_id: ${externalId}`);
+        } catch (err) {
+            await db.markScheduledPostFailed(post.id, err.message);
+            console.error(`[scheduler] Falha ao publicar post ${post.id}:`, err.message);
+        }
+    }
+}
+
 // ─── App auth helpers ────────────────────────────────────────────────────────
 
 const AUTH_COOKIE = 'wozza_session';
@@ -2370,6 +2418,83 @@ app.post('/api/social/comments/:commentId/reply', (req, res) => {
 app.post('/api/social/posts/:externalId/caption', (req, res) => res.json({ success: true }));
 app.delete('/api/social/posts/:externalId', (req, res) => res.json({ success: true }));
 
+// ─── API: Agendamento ─────────────────────────────────────────────────────────
+
+app.post('/api/social/schedule-post', async (req, res) => {
+    try {
+        const user = await requireCurrentUser(req);
+        if (!user) return res.status(401).json({ error: 'Não autenticado' });
+
+        const { platform, content, media_url, media_type, scheduled_for, timezone } = req.body || {};
+        const schoolId = user.school_id;
+
+        if (!platform || !content || !scheduled_for) {
+            return res.status(400).json({ error: 'platform, content e scheduled_for são obrigatórios' });
+        }
+
+        const scheduledDate = new Date(scheduled_for);
+        if (isNaN(scheduledDate.getTime()) || scheduledDate <= new Date()) {
+            return res.status(400).json({ error: 'scheduled_for deve ser uma data futura válida' });
+        }
+
+        const post = await db.createScheduledPost({
+            schoolId,
+            platform: String(platform).toUpperCase(),
+            content,
+            mediaUrl: media_url ?? null,
+            mediaType: media_type ?? 'IMAGE',
+            scheduledFor: scheduledDate.toISOString(),
+            timezone: timezone ?? 'UTC',
+            locale: 'pt-BR',
+        });
+
+        res.json({ success: true, scheduled_post: post });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/social/scheduled-posts', async (req, res) => {
+    try {
+        const user = await requireCurrentUser(req);
+        if (!user) return res.status(401).json({ error: 'Não autenticado' });
+
+        const from = new Date(req.query.from ?? Date.now());
+        const to = new Date(req.query.to ?? Date.now() + 30 * 24 * 60 * 60 * 1000);
+        const posts = await db.getScheduledPostsByAccount(user.school_id, from.toISOString(), to.toISOString());
+        res.json({ posts });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/social/scheduled-posts/:id', async (req, res) => {
+    try {
+        const user = await requireCurrentUser(req);
+        if (!user) return res.status(401).json({ error: 'Não autenticado' });
+
+        const cancelled = await db.cancelScheduledPost(req.params.id, user.school_id);
+        if (!cancelled) return res.status(404).json({ error: 'Post não encontrado ou já processado' });
+        res.json({ success: true, cancelled });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/internal/run-scheduler', async (req, res) => {
+    const authHeader = req.headers['authorization'] || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : req.headers['x-cron-secret'];
+    if (!process.env.CRON_SECRET || token !== process.env.CRON_SECRET) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+        await processDuePosts();
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── Webhooks ─────────────────────────────────────────────────────────────────
 app.post('/webhook/social/meta',     (req, res) => res.json({ received: true }));
 app.get('/webhook/social/tiktok',    (req, res) => res.send(req.query.challenge || 'ok'));
@@ -2405,6 +2530,10 @@ if (require.main === module) {
     // Execução local: node server.js
     ensureDbReady().catch(() => null).then(() => {
         app.listen(port, () => console.log(`Wozza rodando em http://localhost:${port}`));
+        // Scheduler local: verifica posts agendados a cada 60 segundos
+        console.log('[scheduler] Iniciado — verificando a cada 60s');
+        processDuePosts().catch(() => null);
+        setInterval(() => processDuePosts().catch(() => null), 60 * 1000);
     });
 } else {
     // Vercel serverless: exporta o app e inicializa o schema uma vez

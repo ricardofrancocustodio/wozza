@@ -762,6 +762,9 @@ async function publicarNasRedes() {
     const imageUrl = isVideo ? '' : String($('#sm-post-image-url').val() || '').trim();
     const videoUrl = isVideo ? String($('#sm-post-video-url').val() || '').trim() : '';
     const videoFile = isVideo ? ($('#sm-post-video-file')[0]?.files?.[0] || null) : null;
+    const enableSchedule = $('#sm-schedule-enable').is(':checked');
+    const scheduledFor = String($('#sm-schedule-datetime').val() || '').trim();
+    const timezone = String($('#sm-schedule-timezone').val() || 'America/Sao_Paulo').trim();
 
     if (!texto) {
         Swal.fire('Atenção', 'Escreva o texto da postagem antes de publicar.', 'warning');
@@ -774,6 +777,54 @@ async function publicarNasRedes() {
 
     if (!destinos.length) {
         Swal.fire('Atenção', 'Selecione ao menos uma rede social para publicar.', 'warning');
+        return;
+    }
+
+    if (enableSchedule) {
+        if (!scheduledFor) {
+            Swal.fire('Atenção', 'Defina a data e hora para o agendamento.', 'warning');
+            return;
+        }
+        if (new Date(scheduledFor) <= new Date()) {
+            Swal.fire('Atenção', 'A data de agendamento deve ser no futuro.', 'warning');
+            return;
+        }
+        if (destinos.length > 1) {
+            Swal.fire('Atenção', 'O agendamento suporta apenas uma rede por vez. Selecione somente uma rede.', 'warning');
+            return;
+        }
+        const platform = destinos[0];
+        const mediaUrl = isVideo ? videoUrl : imageUrl;
+        const mediaType = isVideo ? 'VIDEO' : 'IMAGE';
+
+        const btn = $('#sm-post-submit-btn');
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Agendando...');
+        try {
+            const res = await fetch('/api/social/schedule-post', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    platform,
+                    content: texto,
+                    media_url: mediaUrl || null,
+                    media_type: mediaType,
+                    scheduled_for: new Date(scheduledFor).toISOString(),
+                    timezone
+                })
+            });
+            const body = await res.json();
+            if (!res.ok) throw new Error(body?.error || 'Falha ao agendar.');
+            Swal.fire('Agendado!', `Post agendado para ${new Date(scheduledFor).toLocaleString('pt-BR')} em ${platform}.`, 'success');
+            $('#sm-post-text').val('');
+            $('#sm-post-image-url').val('');
+            $('#sm-post-video-url').val('');
+            $('#sm-post-char-count').text('0');
+            resetPostImageUploadUi();
+        } catch (err) {
+            Swal.fire('Erro', err.message || 'Não foi possível agendar a postagem.', 'error');
+        } finally {
+            btn.prop('disabled', false).html('<i class="fas fa-calendar-check mr-1"></i>Agendar publicação');
+        }
         return;
     }
 
@@ -1868,6 +1919,22 @@ $(document).ready(async function() {
     $('#sm-refresh-btn').on('click', loadMonitor);
     $('#sm-sim-submit').on('click', ingestSimulation);
     $('#sm-post-submit-btn').on('click', publicarNasRedes);
+    $('#sm-schedule-enable').on('change', function() {
+        const enabled = $(this).is(':checked');
+        $('#sm-schedule-fields').toggle(enabled);
+        $('#sm-post-submit-btn').html(
+            enabled
+                ? '<i class="fas fa-calendar-check mr-1"></i>Agendar publicação'
+                : '<i class="fas fa-paper-plane mr-1"></i>Publicar agora'
+        );
+    });
+    // Pre-fill datetime-local with tomorrow at current time
+    (function() {
+        const d = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        const pad = (n) => String(n).padStart(2, '0');
+        const local = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        $('#sm-schedule-datetime').val(local);
+    })();
     $('#sm-post-media-type-group').on('click', 'button[data-type]', function() {
         switchPostMediaType($(this).data('type'));
     });

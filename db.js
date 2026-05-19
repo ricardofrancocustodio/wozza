@@ -277,6 +277,33 @@ async function ensureSchema() {
 
     await sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS default_account_id TEXT`;
     await sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN NOT NULL DEFAULT FALSE`;
+
+    // ─── Scheduler ────────────────────────────────────────────────────────────
+
+    await sql`
+        CREATE TABLE IF NOT EXISTS scheduled_posts (
+            id            SERIAL PRIMARY KEY,
+            school_id     TEXT NOT NULL,
+            platform      TEXT NOT NULL,
+            content       TEXT NOT NULL,
+            media_url     TEXT,
+            media_type    TEXT NOT NULL DEFAULT 'IMAGE',
+            scheduled_for TIMESTAMPTZ NOT NULL,
+            timezone      TEXT NOT NULL DEFAULT 'UTC',
+            status        TEXT NOT NULL DEFAULT 'pending',
+            error_message TEXT,
+            post_id       TEXT,
+            locale        TEXT NOT NULL DEFAULT 'pt-BR',
+            created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    `;
+
+    await sql`
+        CREATE INDEX IF NOT EXISTS idx_scheduled_posts_due
+            ON scheduled_posts (status, scheduled_for)
+            WHERE status = 'pending'
+    `;
 }
 
 // ─── Channel configs ──────────────────────────────────────────────────────────
@@ -807,6 +834,64 @@ async function dismissConnectSocial(userId) {
     return rows[0];
 }
 
+// ─── Scheduled posts ──────────────────────────────────────────────────────────
+
+async function createScheduledPost({ schoolId, platform, content, mediaUrl, mediaType, scheduledFor, timezone, locale }) {
+    const result = await sql`
+        INSERT INTO scheduled_posts (school_id, platform, content, media_url, media_type, scheduled_for, timezone, locale)
+        VALUES (${schoolId}, ${platform}, ${content}, ${mediaUrl ?? null}, ${mediaType ?? 'IMAGE'}, ${scheduledFor}, ${timezone ?? 'UTC'}, ${locale ?? 'pt-BR'})
+        RETURNING *
+    `;
+    return result[0];
+}
+
+async function getDuePosts() {
+    return sql`
+        SELECT * FROM scheduled_posts
+        WHERE status = 'pending'
+          AND scheduled_for <= NOW()
+        ORDER BY scheduled_for ASC
+        LIMIT 50
+    `;
+}
+
+async function markScheduledPostPublished(id, postId) {
+    await sql`
+        UPDATE scheduled_posts
+        SET status = 'published', post_id = ${postId}, updated_at = NOW()
+        WHERE id = ${id}
+    `;
+}
+
+async function markScheduledPostFailed(id, errorMessage) {
+    await sql`
+        UPDATE scheduled_posts
+        SET status = 'failed', error_message = ${errorMessage}, updated_at = NOW()
+        WHERE id = ${id}
+    `;
+}
+
+async function getScheduledPostsByAccount(schoolId, from, to) {
+    return sql`
+        SELECT * FROM scheduled_posts
+        WHERE school_id = ${schoolId}
+          AND scheduled_for BETWEEN ${from} AND ${to}
+        ORDER BY scheduled_for ASC
+    `;
+}
+
+async function cancelScheduledPost(id, schoolId) {
+    const result = await sql`
+        UPDATE scheduled_posts
+        SET status = 'cancelled', updated_at = NOW()
+        WHERE id = ${id}
+          AND school_id = ${schoolId}
+          AND status = 'pending'
+        RETURNING *
+    `;
+    return result[0] ?? null;
+}
+
 module.exports = {
     sql, ensureSchema,
     ensureAllSocialPlatforms, getConfig, upsertConfig,
@@ -821,5 +906,7 @@ module.exports = {
     publicUser, normalizeEmail,
     PLATFORMS,
     getBillingPlans, getUserBillingStatus, selectPlanForUser,
-    getOnboardingStatus, dismissConnectSocial, markFirstSocialConnectedBySchool
+    getOnboardingStatus, dismissConnectSocial, markFirstSocialConnectedBySchool,
+    createScheduledPost, getDuePosts, markScheduledPostPublished, markScheduledPostFailed,
+    getScheduledPostsByAccount, cancelScheduledPost
 };
