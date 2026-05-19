@@ -183,6 +183,7 @@
         .sm-net-pill.active[data-platform="FACEBOOK"]  { background: #1877f2; color:#fff; border-color: transparent; }
         .sm-net-pill.active[data-platform="TIKTOK"]    { background: #010101; color:#fff; border-color: transparent; }
         .sm-net-pill.active[data-platform="LINKEDIN"]  { background: #0a66c2; color:#fff; border-color: transparent; }
+        .sm-net-pill.active[data-platform="YOUTUBE"]   { background: #ff0000; color:#fff; border-color: transparent; }
         .sm-net-pill .pill-count { font-size:10px; opacity:.8; margin-left:2px; }
 
         /* Calendário de postagens */
@@ -656,11 +657,8 @@
                                         </div>
                                         <small class="text-muted mt-1 d-block">Apenas redes com status <strong>Conectado</strong> são listadas.</small>
                                     </div>
-                                    <button class="btn btn-primary btn-lg" id="sm-post-submit-btn">
-                                        <i class="fas fa-paper-plane mr-1"></i>Publicar agora
-                                    </button>
-                                    <div class="mt-3 pt-2 border-top">
-                                        <div class="custom-control custom-switch">
+                                    <div class="mb-3 p-3 rounded" style="background:rgba(14,165,233,0.07);border:1px solid rgba(14,165,233,0.18);">
+                                        <div class="custom-control custom-switch mb-0">
                                             <input type="checkbox" class="custom-control-input" id="sm-schedule-enable">
                                             <label class="custom-control-label font-weight-bold" for="sm-schedule-enable">
                                                 <i class="fas fa-calendar-alt mr-1 text-info"></i>Agendar publicação
@@ -685,6 +683,9 @@
                                             <small class="text-muted">O post será publicado automaticamente no horário definido.</small>
                                         </div>
                                     </div>
+                                    <button class="btn btn-primary btn-lg" id="sm-post-submit-btn">
+                                        <i class="fas fa-paper-plane mr-1"></i>Publicar agora
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -745,6 +746,7 @@
                                 <span class="sm-net-pill" data-platform="INSTAGRAM"><i class="fab fa-instagram"></i>Instagram <span class="pill-count"></span></span>
                                 <span class="sm-net-pill" data-platform="FACEBOOK"><i class="fab fa-facebook"></i>Facebook <span class="pill-count"></span></span>
                                 <span class="sm-net-pill" data-platform="TIKTOK"><i class="fab fa-tiktok"></i>TikTok <span class="pill-count"></span></span>
+                                <span class="sm-net-pill" data-platform="YOUTUBE"><i class="fab fa-youtube"></i>YouTube <span class="pill-count"></span></span>
                             </div>
                             <div id="sm-feed-loading" class="text-center py-5">
                                 <div class="spinner-border text-primary" role="status"><span class="sr-only">Carregando...</span></div>
@@ -1001,28 +1003,32 @@ const OAUTH_ICONS = {
     INSTAGRAM: 'fab fa-instagram',
     FACEBOOK:  'fab fa-facebook',
     TIKTOK:    'fab fa-tiktok',
-    LINKEDIN:  'fab fa-linkedin'
+    LINKEDIN:  'fab fa-linkedin',
+    YOUTUBE:   'fab fa-youtube'
 };
 const OAUTH_COLORS = {
     INSTAGRAM: '#e1306c',
     FACEBOOK:  '#1877f2',
     TIKTOK:    '#000',
-    LINKEDIN:  '#0077b5'
+    LINKEDIN:  '#0077b5',
+    YOUTUBE:   '#ff0000'
 };
 const OAUTH_PROVIDERS = {
     INSTAGRAM: 'meta',
     FACEBOOK:  'meta',
     TIKTOK:    'tiktok',
-    LINKEDIN:  'linkedin'
+    LINKEDIN:  'linkedin',
+    YOUTUBE:   'youtube'
 };
 const OAUTH_LABELS = {
     INSTAGRAM: 'Conectar com Meta (Instagram)',
     FACEBOOK:  'Conectar com Meta (Facebook)',
     TIKTOK:    'Conectar com TikTok',
-    LINKEDIN:  'Conectar com LinkedIn'
+    LINKEDIN:  'Conectar com LinkedIn',
+    YOUTUBE:   'Conectar com Google (YouTube)'
 };
 
-let oauthStatus = { meta: false, tiktok: false, linkedin: false };
+let oauthStatus = { meta: false, tiktok: false, linkedin: false, youtube: false };
 
 async function loadOAuthStatus() {
     try {
