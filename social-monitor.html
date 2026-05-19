@@ -1043,17 +1043,25 @@ function renderOAuthSection(platform) {
     const icon = OAUTH_ICONS[platform] || 'fas fa-link';
     const color = OAUTH_COLORS[platform] || '#555';
     const label = OAUTH_LABELS[platform] || `Conectar ${platform}`;
-    const configured = provider === 'meta' ? oauthStatus.meta
-                     : provider === 'tiktok' ? oauthStatus.tiktok
+    const configured = provider === 'meta'    ? oauthStatus.meta
+                     : provider === 'tiktok'  ? oauthStatus.tiktok
+                     : provider === 'youtube' ? oauthStatus.youtube
                      : oauthStatus.linkedin;
+
+    const envHintMap = {
+        meta:     'META_APP_ID + META_APP_SECRET',
+        tiktok:   'TIKTOK_APP_ID + TIKTOK_APP_SECRET',
+        youtube:  'GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET',
+        linkedin: 'LINKEDIN_CLIENT_ID + LINKEDIN_CLIENT_SECRET'
+    };
 
     if (!configured) {
         $('#sm-oauth-status-label').text('');
         $('#sm-oauth-section').html(`
             <div class="alert alert-warning py-2 mb-0" style="font-size:.85rem;">
                 <i class="fas fa-exclamation-triangle mr-1"></i>
-                OAuth não configurado para ${platform}. Preencha as variáveis de ambiente no <code>.env</code>
-                (${provider === 'meta' ? 'META_APP_ID + META_APP_SECRET' : provider === 'tiktok' ? 'TIKTOK_APP_ID + TIKTOK_APP_SECRET' : 'LINKEDIN_CLIENT_ID + LINKEDIN_CLIENT_SECRET'})
+                OAuth nao configurado para ${platform}. Preencha as variaveis de ambiente no <code>.env</code>
+                (${envHintMap[provider] || provider})
                 e reinicie o servidor.
             </div>
         `);

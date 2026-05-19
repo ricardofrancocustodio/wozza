@@ -1256,6 +1256,10 @@ window.openConfigModal = function openConfigModal(platform) {
             { key: 'li_org', label: 'LinkedIn Org ID', ok: !!refs.linkedin_org_id },
             { key: 'verify', label: 'Verify Token', ok: !!cfg.webhook_verify_token },
             { key: 'access', label: 'Access Token', ok: hasAccess }
+        ],
+        YOUTUBE: [
+            { key: 'access', label: 'Access Token', ok: hasAccess },
+            { key: 'refresh', label: 'Refresh Token', ok: hasRefresh }
         ]
     };
     const reqs = requirementsByPlatform[platformUpper] || requirementsByPlatform.INSTAGRAM;
