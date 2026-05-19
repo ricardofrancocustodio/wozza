@@ -2383,6 +2383,7 @@ app.post('/api/blob/handle-video-upload', async (req, res) => {
             onBeforeGenerateToken: async () => ({
                 allowedContentTypes: ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/mpeg'],
                 maximumSizeInBytes: 500 * 1024 * 1024,
+                addRandomSuffix: false,
             }),
             onUploadCompleted: async () => {},
         });
