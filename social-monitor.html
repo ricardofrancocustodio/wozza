@@ -1097,7 +1097,7 @@ function renderOAuthSection(platform) {
         linkedin: 'LINKEDIN_CLIENT_ID + LINKEDIN_CLIENT_SECRET'
     };
 
-    if (!configured) {
+    if (!configured && provider !== 'youtube') {
         $('#sm-oauth-status-label').text('');
         $('#sm-oauth-section').html(`
             <div class="alert alert-warning py-2 mb-0" style="font-size:.85rem;">
