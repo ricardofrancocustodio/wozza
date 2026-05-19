@@ -1,11 +1,5 @@
 {
   "version": 2,
-  "crons": [
-    {
-      "path": "/api/internal/run-scheduler",
-      "schedule": "0 3 * * *"
-    }
-  ],
   "builds": [
     {
       "src": "server.js",
