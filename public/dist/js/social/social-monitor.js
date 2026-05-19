@@ -757,7 +757,7 @@ async function uploadVideoToBlob(file, onProgress) {
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const pathname = `videos/${Date.now()}-${safeName}`;
 
-    // 1. Obter client token do servidor (handleUpload flow)
+    // 1. Obter client token do servidor
     const tokenRes = await fetch('/api/blob/handle-video-upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -769,14 +769,16 @@ async function uploadVideoToBlob(file, onProgress) {
     const tokenData = await tokenRes.json();
     if (!tokenRes.ok) throw new Error(tokenData.error || 'Falha ao obter token de upload');
     const clientToken = tokenData.clientToken;
+    if (!clientToken) throw new Error('Token de upload invalido. Verifique BLOB_READ_WRITE_TOKEN no servidor.');
 
-    // 2. PUT direto ao Vercel Blob com progresso via XHR
+    // 2. PUT direto ao Vercel Blob API com progresso via XHR
     const blobUrl = await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('PUT', `https://blob.vercel-storage.com/${pathname}`);
-        xhr.setRequestHeader('Authorization', `Bearer ${clientToken}`);
-        xhr.setRequestHeader('x-mw-token', clientToken);
-        xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+        const params = new URLSearchParams({ pathname });
+        xhr.open('PUT', `https://vercel.com/api/blob/?${params}`);
+        xhr.setRequestHeader('authorization', `Bearer ${clientToken}`);
+        xhr.setRequestHeader('x-vercel-blob-access', 'public');
+        xhr.setRequestHeader('x-content-type', file.type || 'video/mp4');
         xhr.upload.onprogress = (e) => {
             if (e.lengthComputable && onProgress) onProgress(Math.round(e.loaded / e.total * 100));
         };
@@ -785,10 +787,10 @@ async function uploadVideoToBlob(file, onProgress) {
                 try { resolve(JSON.parse(xhr.responseText).url); }
                 catch { reject(new Error('Resposta invalida do storage apos upload')); }
             } else {
-                reject(new Error(`Storage rejeitou o video (status ${xhr.status})`));
+                reject(new Error(`Storage rejeitou o video (${xhr.status}): ${xhr.responseText?.slice(0, 200)}`));
             }
         };
-        xhr.onerror = () => reject(new Error('Falha de rede ao enviar video'));
+        xhr.onerror = () => reject(new Error(`Falha de rede ao enviar video para Vercel Blob. Abra o console do navegador (F12) para detalhes.`));
         xhr.send(file);
     });
 
