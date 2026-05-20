@@ -404,6 +404,17 @@ async function insertMessage(msg) {
     return rows[0];
 }
 
+async function findMessageByExternalId(schoolId, externalId) {
+    if (!externalId) return null;
+    const rows = await sql`
+        SELECT id FROM social_inbox_messages
+        WHERE school_id = ${schoolId}
+          AND metadata->>'comment_id' = ${String(externalId)}
+        LIMIT 1
+    `;
+    return rows[0] || null;
+}
+
 async function updateMessage(id, fields) {
     const rows = await sql`
         UPDATE social_inbox_messages SET
@@ -923,7 +934,7 @@ async function cancelScheduledPost(id, schoolId) {
 module.exports = {
     sql, ensureSchema,
     ensureAllSocialPlatforms, getConfig, upsertConfig, findConfigByMetaId, findConfigByTikTokOpenId,
-    insertMessage, updateMessage, updateMessageForSchool, getRecentMessages, countMessages,
+    insertMessage, findMessageByExternalId, updateMessage, updateMessageForSchool, getRecentMessages, countMessages,
     insertAlert, getOpenAlerts, closeAlertsForMessage, setAlertsInProgress,
     getReplyConfig, upsertReplyConfig,
     insertPost, upsertSyncedPost, getPostsByDateRange,

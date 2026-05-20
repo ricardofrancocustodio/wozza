@@ -1206,12 +1206,12 @@ $(document).ready(async function() {
         $('#sm-sync-posts-btn').toggle(showSync);
     });
 
-    // Sincronizar tudo — botão global
+    // Sincronizar tudo — botão global (posts + comentários)
     async function syncAllPlatforms(silent) {
         const schoolId = sessionStorage.getItem('SCHOOL_ID') || 'wozza-default-school';
         const btn = $('#sm-sync-all-btn');
         btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Sincronizando...');
-        let totalSynced = 0, warnings = [];
+        let totalPosts = 0, totalComments = 0, warnings = [];
         const platforms = ['INSTAGRAM', 'FACEBOOK', 'TIKTOK'];
         for (const plat of platforms) {
             try {
@@ -1222,17 +1222,32 @@ $(document).ready(async function() {
                 });
                 if (res.ok) {
                     const data = await res.json();
-                    totalSynced += data.synced || 0;
+                    totalPosts += data.synced || 0;
                     if (data.warnings?.length) warnings.push(...data.warnings);
                 }
             } catch (_) {}
         }
+        try {
+            const commentsRes = await fetch('/api/social/sync-comments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ school_id: schoolId })
+            });
+            if (commentsRes.ok) {
+                const data = await commentsRes.json();
+                totalComments = data.ingested || 0;
+                (data.results || []).forEach((r) => {
+                    if (r.warnings?.length) warnings.push(...r.warnings);
+                });
+            }
+        } catch (_) {}
         btn.prop('disabled', false).html('<i class="fas fa-sync-alt mr-1"></i>Sincronizar tudo');
         if (!silent) {
+            const warningTxt = warnings.length ? '\n\n⚠️ ' + warnings.slice(0, 3).join('\n') : '';
             Swal.fire({
                 icon: 'success',
                 title: 'Sincronização concluída!',
-                text: `${totalSynced} posts sincronizados.${warnings.length ? '\n⚠️ ' + warnings[0] : ''}`,
+                text: `${totalPosts} posts e ${totalComments} comentários sincronizados.${warningTxt}`,
                 confirmButtonText: 'OK'
             }).then(() => { if (typeof loadMonitor === 'function') loadMonitor(); });
         } else {

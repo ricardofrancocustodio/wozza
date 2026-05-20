@@ -2531,7 +2531,141 @@ app.get('/api/social/posts', async (req, res) => {
     }
 });
 
-app.get('/api/social/posts/:postId/interactions', (req, res) => res.json({ interactions: [] }));
+async function fetchInstagramComments(mediaId, accessToken) {
+    const res = await fetchMeta(`${mediaId}/comments`, accessToken, {
+        fields: 'id,text,username,timestamp,from,replies{id,text,username,timestamp,from}',
+        limit: '50'
+    });
+    if (!res.ok) return [];
+    return res.data?.data || [];
+}
+
+async function fetchFacebookComments(postId, accessToken) {
+    const res = await fetchMeta(`${postId}/comments`, accessToken, {
+        fields: 'id,message,from,created_time,permalink_url',
+        limit: '50'
+    });
+    if (!res.ok) return [];
+    return res.data?.data || [];
+}
+
+async function syncCommentsForSchool(schoolId, platform) {
+    const summary = { platform, ingested: 0, skipped: 0, warnings: [] };
+    const config = await db.getConfig(schoolId, platform);
+    if (!config || config.connection_status !== 'CONNECTED' || !config.enabled) {
+        summary.warnings.push(`${platform}: canal não conectado.`);
+        return summary;
+    }
+
+    if (platform === 'TIKTOK') {
+        summary.warnings.push('TikTok não expõe API pública para listar comentários. Use a aba Monitoramento dentro do TikTok ou aguarde aprovação do app.');
+        return summary;
+    }
+
+    const credentials = decryptSocialCredentials(config.credentials_encrypted);
+    const accessToken = credentials.page_access_token || credentials.access_token;
+    if (!accessToken) {
+        summary.warnings.push(`${platform}: token não encontrado, reconecte o canal.`);
+        return summary;
+    }
+
+    const from = new Date(Date.now() - 30 * 86400e3).toISOString();
+    const to = new Date().toISOString();
+    const posts = await db.getPostsByDateRange(schoolId, from, to);
+    const platformPosts = posts.filter((p) => String(p.platform || '').toUpperCase() === platform);
+
+    for (const post of platformPosts) {
+        const externalId = post.external_id;
+        if (!externalId) continue;
+        try {
+            const comments = platform === 'INSTAGRAM'
+                ? await fetchInstagramComments(externalId, accessToken)
+                : await fetchFacebookComments(externalId, accessToken);
+
+            for (const c of comments) {
+                const messageText = String(c.text || c.message || '').trim();
+                if (!messageText) { summary.skipped += 1; continue; }
+                const existing = await db.findMessageByExternalId?.(schoolId, c.id);
+                if (existing) { summary.skipped += 1; continue; }
+
+                const message = await processIncomingComment({
+                    schoolId, platform, channel: 'POST_COMMENT',
+                    senderHandle: c.username || c.from?.username || c.from?.id || null,
+                    senderName: c.from?.name || null,
+                    messageText,
+                    postPermalink: post.permalink || null,
+                    messagePermalink: c.permalink_url || null,
+                    metadata: { comment_id: c.id, post_external_id: externalId, source: 'sync', raw: c }
+                });
+                if (message) summary.ingested += 1;
+            }
+        } catch (err) {
+            summary.warnings.push(`${platform} post ${externalId}: ${err.message}`);
+        }
+    }
+    return summary;
+}
+
+app.post('/api/social/sync-comments', async (req, res) => {
+    try {
+        const user = await requireCurrentUser(req);
+        if (!user) return res.status(401).json({ error: 'Não autenticado' });
+        const body = req.body || {};
+        const schoolId = String(body.school_id || user.school_id || '').trim();
+        if (schoolId !== user.school_id) return res.status(403).json({ error: 'school_id não pertence ao usuário' });
+        const platform = body.platform ? String(body.platform).trim().toUpperCase() : null;
+        const platforms = platform ? [platform] : ['INSTAGRAM', 'FACEBOOK', 'TIKTOK'];
+        const results = [];
+        for (const p of platforms) {
+            try {
+                results.push(await syncCommentsForSchool(schoolId, p));
+            } catch (err) {
+                results.push({ platform: p, ingested: 0, warnings: [err.message] });
+            }
+        }
+        const totalIngested = results.reduce((sum, r) => sum + (r.ingested || 0), 0);
+        return res.json({ ok: true, results, ingested: totalIngested });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/social/posts/:postId/interactions', async (req, res) => {
+    try {
+        const user = await requireCurrentUser(req);
+        if (!user) return res.status(401).json({ error: 'Não autenticado' });
+        const schoolId = user.school_id;
+        const externalId = String(req.query.external_id || req.params.postId || '').trim();
+        const platform = String(req.query.platform || '').trim().toUpperCase();
+        if (!externalId || !platform) return res.json({ interactions: [] });
+
+        if (platform === 'TIKTOK') {
+            return res.json({ interactions: [], note: 'TikTok não expõe API pública para listar comentários.' });
+        }
+
+        const config = await db.getConfig(schoolId, platform);
+        if (!config || config.connection_status !== 'CONNECTED') return res.json({ interactions: [] });
+        const credentials = decryptSocialCredentials(config.credentials_encrypted);
+        const accessToken = credentials.page_access_token || credentials.access_token;
+        if (!accessToken) return res.json({ interactions: [] });
+
+        const comments = platform === 'INSTAGRAM'
+            ? await fetchInstagramComments(externalId, accessToken)
+            : await fetchFacebookComments(externalId, accessToken);
+
+        const interactions = comments.map((c) => ({
+            id: c.id,
+            text: c.text || c.message || '',
+            sender_handle: c.username || c.from?.username || c.from?.id || null,
+            sender_name: c.from?.name || null,
+            created_at: c.timestamp || c.created_time || null,
+            permalink: c.permalink_url || null
+        }));
+        return res.json({ interactions });
+    } catch (err) {
+        return res.json({ interactions: [], error: err.message });
+    }
+});
 app.post('/api/social/comments/:commentId/reply', (req, res) => {
     const text = String((req.body || {}).text || '').trim();
     if (!text) return res.status(400).json({ error: 'text é obrigatório' });
