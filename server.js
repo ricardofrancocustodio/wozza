@@ -1787,7 +1787,7 @@ app.post('/api/social/tiktok/init-upload', async (req, res) => {
         const schoolId = String(body.school_id || '').trim();
         if (!schoolId || schoolId !== user.school_id) return res.status(403).json({ error: 'school_id inválido' });
 
-        const title = String(body.title || '').trim().slice(0, 150);
+        const title = String(body.title || '').replace(/\s+/g, ' ').trim().slice(0, 150);
         const fileSize = Number(body.file_size || 0);
         if (!fileSize) return res.status(400).json({ error: 'file_size é obrigatório' });
 
@@ -1806,7 +1806,10 @@ app.post('/api/social/tiktok/init-upload', async (req, res) => {
                     privacy_level: 'SELF_ONLY',
                     disable_duet: false,
                     disable_comment: false,
-                    disable_stitch: false
+                    disable_stitch: false,
+                    brand_content_toggle: false,
+                    brand_organic_toggle: false,
+                    is_aigc: false
                 },
                 source_info: {
                     source: 'FILE_UPLOAD',
@@ -1818,8 +1821,10 @@ app.post('/api/social/tiktok/init-upload', async (req, res) => {
         });
 
         if (!initRes.ok || !initRes.data?.data?.upload_url) {
-            const errMsg = initRes.data?.error?.message || 'Falha ao iniciar upload no TikTok';
-            return res.status(500).json({ error: errMsg });
+            const err = initRes.data?.error || {};
+            const errMsg = err.message || 'Falha ao iniciar upload no TikTok';
+            const errCode = err.code || '';
+            return res.status(500).json({ error: `TikTok [${errCode}]: ${errMsg}`, log_id: err.log_id });
         }
 
         return res.json({
