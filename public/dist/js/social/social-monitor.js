@@ -771,6 +771,7 @@ async function uploadVideoToBlob(file, onProgress) {
         const params = new URLSearchParams({ pathname });
         xhr.open('PUT', `https://vercel.com/api/blob/?${params}`);
         xhr.setRequestHeader('authorization', `Bearer ${clientToken}`);
+        xhr.setRequestHeader('x-api-version', '12');
         xhr.setRequestHeader('x-vercel-blob-access', 'public');
         xhr.setRequestHeader('x-content-type', file.type || 'video/mp4');
         xhr.upload.onprogress = (e) => {
