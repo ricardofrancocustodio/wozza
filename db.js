@@ -541,13 +541,18 @@ async function upsertSyncedPost(post) {
 async function getPostsByDateRange(schoolId, from, to) {
     return sql`
         SELECT
-            *,
-            COALESCE(content, post_text, '') AS content
-        FROM social_posts
-        WHERE school_id = ${schoolId}
-          AND published_at >= ${from}::timestamptz
-          AND published_at <= ${to}::timestamptz
-        ORDER BY published_at DESC
+            p.*,
+            COALESCE(p.content, p.post_text, '') AS content
+        FROM social_posts p
+        JOIN social_channel_configs c
+          ON c.school_id = p.school_id
+         AND UPPER(c.platform) = UPPER(p.platform)
+        WHERE p.school_id = ${schoolId}
+          AND p.published_at >= ${from}::timestamptz
+          AND p.published_at <= ${to}::timestamptz
+          AND c.connection_status = 'CONNECTED'
+          AND c.enabled = true
+        ORDER BY p.published_at DESC
     `;
 }
 
