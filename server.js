@@ -1778,6 +1778,116 @@ app.post('/api/social/youtube/finalize-upload', async (req, res) => {
     }
 });
 
+app.post('/api/social/tiktok/init-upload', async (req, res) => {
+    try {
+        const user = await requireCurrentUser(req);
+        if (!user) return res.status(401).json({ error: 'Não autenticado' });
+
+        const body = req.body || {};
+        const schoolId = String(body.school_id || '').trim();
+        if (!schoolId || schoolId !== user.school_id) return res.status(403).json({ error: 'school_id inválido' });
+
+        const title = String(body.title || '').trim().slice(0, 150);
+        const fileSize = Number(body.file_size || 0);
+        if (!fileSize) return res.status(400).json({ error: 'file_size é obrigatório' });
+
+        const config = await db.getConfig(schoolId, 'TIKTOK');
+        if (!config?.credentials_encrypted) return res.status(400).json({ error: 'Canal do TikTok não está conectado' });
+        const credentials = decryptSocialCredentials(config.credentials_encrypted);
+        const accessToken = credentials.access_token;
+        if (!accessToken) return res.status(400).json({ error: 'Token do TikTok não encontrado. Reconecte o canal.' });
+
+        const initRes = await fetchJson('https://open.tiktokapis.com/v2/post/publish/video/init/', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json; charset=UTF-8' },
+            body: JSON.stringify({
+                post_info: {
+                    title,
+                    privacy_level: 'SELF_ONLY',
+                    disable_duet: false,
+                    disable_comment: false,
+                    disable_stitch: false
+                },
+                source_info: {
+                    source: 'FILE_UPLOAD',
+                    video_size: fileSize,
+                    chunk_size: fileSize,
+                    total_chunk_count: 1
+                }
+            })
+        });
+
+        if (!initRes.ok || !initRes.data?.data?.upload_url) {
+            const errMsg = initRes.data?.error?.message || 'Falha ao iniciar upload no TikTok';
+            return res.status(500).json({ error: errMsg });
+        }
+
+        return res.json({
+            upload_url: initRes.data.data.upload_url,
+            publish_id: initRes.data.data.publish_id
+        });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/social/tiktok/finalize-upload', async (req, res) => {
+    try {
+        const user = await requireCurrentUser(req);
+        if (!user) return res.status(401).json({ error: 'Não autenticado' });
+
+        const body = req.body || {};
+        const schoolId = String(body.school_id || '').trim();
+        const publishId = String(body.publish_id || '').trim();
+        const title = String(body.title || '').trim();
+        if (!schoolId || schoolId !== user.school_id) return res.status(403).json({ error: 'school_id inválido' });
+        if (!publishId) return res.status(400).json({ error: 'publish_id é obrigatório' });
+
+        const config = await db.getConfig(schoolId, 'TIKTOK');
+        const credentials = decryptSocialCredentials(config.credentials_encrypted);
+        const accessToken = credentials.access_token;
+
+        // Aguarda processamento do TikTok (ate 50s)
+        for (let attempt = 0; attempt < 10; attempt++) {
+            await new Promise((r) => setTimeout(r, 5000));
+            const statusRes = await fetchJson('https://open.tiktokapis.com/v2/post/publish/status/fetch/', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json; charset=UTF-8' },
+                body: JSON.stringify({ publish_id: publishId })
+            });
+            const status = statusRes.data?.data?.status || '';
+            if (status === 'PUBLISH_COMPLETE') {
+                const post = await db.upsertSyncedPost({
+                    school_id: schoolId,
+                    platform: 'TIKTOK',
+                    external_id: publishId,
+                    content: title,
+                    media_url: null,
+                    thumbnail_url: null,
+                    permalink: null,
+                    media_type: 'VIDEO',
+                    like_count: 0,
+                    comments_count: 0,
+                    account_username: config.metadata?.display_name || '',
+                    account_avatar: null,
+                    published_at: new Date().toISOString(),
+                    media: { type: 'VIDEO', url: null },
+                    results: [{ platform: 'TIKTOK', externalId: publishId, success: true, source: 'publish' }]
+                });
+                return res.json({ ok: true, publish_id: publishId, post });
+            }
+            if (status === 'FAILED') {
+                const failMsg = statusRes.data?.data?.fail_reason || 'Publicação no TikTok falhou';
+                return res.status(500).json({ error: failMsg });
+            }
+        }
+
+        return res.json({ ok: true, publish_id: publishId, pending: true });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/api/oauth/status', (req, res) => {
     res.json({
         meta:     !!(env('META_APP_ID') && env('META_APP_SECRET')),

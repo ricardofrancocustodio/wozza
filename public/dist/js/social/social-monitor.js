@@ -753,6 +753,47 @@ async function uploadVideoToYouTube(title, description, file) {
     return finalBody;
 }
 
+async function uploadVideoToTikTok(title, file, onProgress) {
+    const initRes = await fetch('/api/social/tiktok/init-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            school_id: socialState.schoolId,
+            title,
+            file_size: file.size
+        })
+    });
+    const initBody = await initRes.json();
+    if (!initRes.ok) throw new Error(initBody?.error || 'Falha ao iniciar upload no TikTok');
+
+    const { upload_url, publish_id } = initBody;
+
+    await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', upload_url);
+        xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+        xhr.setRequestHeader('Content-Range', `bytes 0-${file.size - 1}/${file.size}`);
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable && onProgress) onProgress(Math.round(e.loaded / e.total * 100));
+        };
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) resolve();
+            else reject(new Error(`TikTok rejeitou o video (status ${xhr.status})`));
+        };
+        xhr.onerror = () => reject(new Error('Falha de rede ao enviar para TikTok'));
+        xhr.send(file);
+    });
+
+    const finalRes = await fetch('/api/social/tiktok/finalize-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ school_id: socialState.schoolId, publish_id, title })
+    });
+    const finalBody = await finalRes.json();
+    if (!finalRes.ok) throw new Error(finalBody?.error || 'Falha ao finalizar publicação no TikTok');
+    return finalBody;
+}
+
 async function uploadVideoToBlob(file, onProgress) {
     // 1. Servidor gera o pathname e o clientToken juntos — garante que batem no JWT
     const tokenRes = await fetch('/api/blob/video-token', {
@@ -877,7 +918,8 @@ async function publicarNasRedes() {
     }
 
     const youtubeSelected = destinos.includes('YOUTUBE');
-    const outrasRedes = destinos.filter(d => d !== 'YOUTUBE');
+    const tiktokSelected = destinos.includes('TIKTOK');
+    const outrasRedes = destinos.filter(d => d !== 'YOUTUBE' && d !== 'TIKTOK');
 
     if (isVideo && !videoFile) {
         Swal.fire('Atenção', 'Selecione um arquivo de vídeo antes de publicar.', 'warning');
@@ -905,6 +947,23 @@ async function publicarNasRedes() {
                 if (ytResult.post) anyPost = ytResult.post;
             } catch (err) {
                 resultado['YOUTUBE'] = { success: false, error: err.message };
+            }
+            $('#sm-post-video-progress-wrap').hide();
+        }
+
+        if (isVideo && tiktokSelected && videoFile) {
+            $('#sm-post-video-progress-wrap').show();
+            $('#sm-post-video-progress-bar').css('width', '0%').text('0%');
+            $('#sm-post-video-progress-text').text('Enviando para TikTok...');
+            try {
+                const ttResult = await uploadVideoToTikTok(texto.slice(0, 150), videoFile, (pct) => {
+                    $('#sm-post-video-progress-bar').css('width', `${pct}%`).text(`${pct}%`);
+                    $('#sm-post-video-progress-text').text(`Enviando para TikTok... ${pct}%`);
+                });
+                resultado['TIKTOK'] = { success: true, permalink: ttResult.permalink || null };
+                if (ttResult.post) anyPost = ttResult.post;
+            } catch (err) {
+                resultado['TIKTOK'] = { success: false, error: err.message };
             }
             $('#sm-post-video-progress-wrap').hide();
         }
