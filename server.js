@@ -14,7 +14,14 @@ function env(name) {
     return String(process.env[name] || '').trim();
 }
 
-app.use(express.json({ limit: '12mb' }));
+app.use(express.json({
+    limit: '12mb',
+    verify: (req, _res, buf) => {
+        if (req.originalUrl && req.originalUrl.startsWith('/webhook/social/')) {
+            req.rawBody = buf.toString('utf8');
+        }
+    }
+}));
 app.use(express.urlencoded({ extended: false }));
 
 // Servir arquivos estáticos
@@ -2191,44 +2198,19 @@ app.post('/api/social-monitor/ingest', async (req, res) => {
     }
 
     try {
-        const classification = classifyMessage(messageText);
-        const replyCfg = await db.getReplyConfig(schoolId);
-
-        let aiResponseText = null;
-        if (classification.decision === 'AUTO_REPLY' || classification.decision === 'MIXED') {
-            aiResponseText = buildAutoReply(replyCfg, classification.decision);
-        }
-
-        let status = classification.decision === 'SENSITIVE' ? 'PENDING_REVIEW'
-                   : aiResponseText ? 'AUTO_READY' : 'NEW';
-
-        const message = await db.insertMessage({
-            school_id: schoolId, platform, channel,
-            sender_handle: body.sender_handle || null,
-            sender_name:   body.sender_name   || null,
-            message_text:  messageText,
-            post_permalink:    body.post_permalink    || null,
-            message_permalink: body.message_permalink || null,
-            metadata: body.metadata || {},
-            classification_category:    classification.category,
-            classification_decision:    classification.decision,
-            classification_confidence:  classification.confidence,
-            classification_justification: classification.justification,
-            ai_response_text: aiResponseText,
-            status
+        const message = await processIncomingComment({
+            schoolId, platform, channel,
+            senderHandle: body.sender_handle || null,
+            senderName: body.sender_name || null,
+            messageText,
+            postPermalink: body.post_permalink || null,
+            messagePermalink: body.message_permalink || null,
+            metadata: body.metadata || {}
         });
+        if (!message) return res.json({ ignored: true });
 
-        let alert = null;
-        if (classification.decision === 'SENSITIVE' || classification.decision === 'MIXED') {
-            const inserted = await db.insertAlert({
-                message_id: message.id,
-                category:   classification.category,
-                severity:   classification.severity || 'MEDIUM'
-            });
-            alert = { ...inserted, message_text: messageText, platform, channel };
-        }
-
-        return res.json({ message: publicMessageView(message), alert: alert ? publicAlertView(alert) : null, classification });
+        const classification = classifyMessage(messageText);
+        return res.json({ message: publicMessageView(message), classification });
     } catch (err) {
         console.error('ingest error:', err);
         return res.status(500).json({ error: err.message });
@@ -2636,9 +2618,224 @@ app.get('/api/internal/run-scheduler', async (req, res) => {
 });
 
 // ─── Webhooks ─────────────────────────────────────────────────────────────────
-app.post('/webhook/social/meta',     (req, res) => res.json({ received: true }));
-app.get('/webhook/social/tiktok',    (req, res) => res.send(req.query.challenge || 'ok'));
-app.post('/webhook/social/tiktok',   (req, res) => res.json({ received: true }));
+function verifyMetaSignature(req) {
+    const signature = req.headers['x-hub-signature-256'];
+    const secret = env('META_APP_SECRET');
+    if (!signature || !secret || !req.rawBody) return false;
+    const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(req.rawBody).digest('hex');
+    try {
+        return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+    } catch {
+        return false;
+    }
+}
+
+function verifyTikTokSignature(req) {
+    const sigHeader = req.headers['tiktok-signature'] || req.headers['x-tiktok-signature'];
+    const secret = env('TIKTOK_SANDBOX_CLIENT_SECRET') || env('TIKTOK_CLIENT_SECRET') || env('TIKTOK_APP_SECRET');
+    if (!sigHeader || !secret || !req.rawBody) return false;
+    const parts = String(sigHeader).split(',').reduce((acc, kv) => {
+        const [k, v] = kv.split('=');
+        if (k && v) acc[k.trim()] = v.trim();
+        return acc;
+    }, {});
+    if (!parts.t || !parts.s) return false;
+    const expected = crypto.createHmac('sha256', secret).update(`${parts.t}.${req.rawBody}`).digest('hex');
+    try {
+        return crypto.timingSafeEqual(Buffer.from(parts.s), Buffer.from(expected));
+    } catch {
+        return false;
+    }
+}
+
+async function processIncomingComment({
+    schoolId, platform, channel,
+    senderHandle, senderName, messageText,
+    postPermalink, messagePermalink, metadata
+}) {
+    if (!messageText || !schoolId) return null;
+
+    const ownHandles = new Set();
+    try {
+        const cfg = await db.getConfig(schoolId, platform);
+        const md = cfg?.metadata || {};
+        [md.instagram_username, md.page_name, md.display_name, md.tiktok_username]
+            .filter(Boolean).forEach((h) => ownHandles.add(String(h).toLowerCase()));
+    } catch {}
+    if (senderHandle && ownHandles.has(String(senderHandle).toLowerCase())) {
+        return null; // eco de resposta da propria escola
+    }
+
+    const classification = classifyMessage(messageText);
+    const replyCfg = await db.getReplyConfig(schoolId);
+
+    let aiResponseText = null;
+    if (classification.decision === 'AUTO_REPLY' || classification.decision === 'MIXED') {
+        aiResponseText = buildAutoReply(replyCfg, classification.decision);
+    }
+    const status = classification.decision === 'SENSITIVE' ? 'PENDING_REVIEW'
+                 : aiResponseText ? 'AUTO_READY' : 'NEW';
+
+    const message = await db.insertMessage({
+        school_id: schoolId, platform, channel,
+        sender_handle: senderHandle, sender_name: senderName,
+        message_text: messageText,
+        post_permalink: postPermalink, message_permalink: messagePermalink,
+        metadata: metadata || {},
+        classification_category: classification.category,
+        classification_decision: classification.decision,
+        classification_confidence: classification.confidence,
+        classification_justification: classification.justification,
+        ai_response_text: aiResponseText,
+        status
+    });
+
+    if (classification.decision === 'SENSITIVE' || classification.decision === 'MIXED') {
+        await db.insertAlert({
+            message_id: message.id,
+            category: classification.category,
+            severity: classification.severity || 'MEDIUM'
+        });
+    }
+    return message;
+}
+
+app.get('/webhook/social/meta', (req, res) => {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+    const expectedToken = env('META_WEBHOOK_VERIFY_TOKEN') || 'wozza-verify';
+    if (mode === 'subscribe' && token === expectedToken) return res.send(challenge);
+    return res.sendStatus(403);
+});
+
+app.post('/webhook/social/meta', async (req, res) => {
+    if (!verifyMetaSignature(req)) {
+        console.warn('[webhook meta] assinatura invalida');
+        return res.sendStatus(403);
+    }
+    res.json({ received: true });
+
+    try {
+        const body = req.body || {};
+        const isInstagram = body.object === 'instagram';
+        const platform = isInstagram ? 'INSTAGRAM' : 'FACEBOOK';
+        const entries = Array.isArray(body.entry) ? body.entry : [];
+
+        for (const entry of entries) {
+            const cfg = await db.findConfigByMetaId(entry.id);
+            if (!cfg || cfg.connection_status !== 'CONNECTED' || !cfg.enabled) continue;
+            const schoolId = cfg.school_id;
+            const changes = Array.isArray(entry.changes) ? entry.changes : [];
+
+            for (const change of changes) {
+                const v = change.value || {};
+                if (change.field === 'comments') {
+                    const messageText = String(v.text || v.message || '').trim();
+                    if (!messageText) continue;
+                    await processIncomingComment({
+                        schoolId, platform: isInstagram ? 'INSTAGRAM' : 'FACEBOOK',
+                        channel: 'POST_COMMENT',
+                        senderHandle: v.from?.username || v.from?.name || v.from?.id || null,
+                        senderName: v.from?.name || null,
+                        messageText,
+                        postPermalink: v.media?.permalink || null,
+                        messagePermalink: v.permalink || null,
+                        metadata: { comment_id: v.id, media_id: v.media?.id, raw: v }
+                    });
+                } else if (change.field === 'feed' && v.item === 'comment' && v.verb === 'add') {
+                    const messageText = String(v.message || '').trim();
+                    if (!messageText) continue;
+                    await processIncomingComment({
+                        schoolId, platform: 'FACEBOOK', channel: 'POST_COMMENT',
+                        senderHandle: v.from?.id || null,
+                        senderName: v.from?.name || null,
+                        messageText,
+                        postPermalink: v.post_id ? `https://facebook.com/${v.post_id}` : null,
+                        messagePermalink: null,
+                        metadata: { comment_id: v.comment_id, post_id: v.post_id, raw: v }
+                    });
+                } else if (change.field === 'mentions') {
+                    const messageText = String(v.text || v.message || '').trim();
+                    if (!messageText) continue;
+                    await processIncomingComment({
+                        schoolId, platform: isInstagram ? 'INSTAGRAM' : 'FACEBOOK',
+                        channel: 'STORY_MENTION',
+                        senderHandle: v.from?.username || v.from?.id || null,
+                        senderName: v.from?.name || null,
+                        messageText,
+                        postPermalink: null, messagePermalink: null,
+                        metadata: { raw: v }
+                    });
+                }
+            }
+
+            const messaging = Array.isArray(entry.messaging) ? entry.messaging : [];
+            for (const m of messaging) {
+                const messageText = String(m.message?.text || '').trim();
+                if (!messageText) continue;
+                await processIncomingComment({
+                    schoolId, platform: isInstagram ? 'INSTAGRAM' : 'FACEBOOK',
+                    channel: 'DIRECT',
+                    senderHandle: m.sender?.id || null,
+                    senderName: null,
+                    messageText,
+                    postPermalink: null, messagePermalink: null,
+                    metadata: { message_id: m.message?.mid, raw: m }
+                });
+            }
+        }
+    } catch (err) {
+        console.error('[webhook meta] erro processando:', err.message);
+    }
+});
+
+app.get('/webhook/social/tiktok', (req, res) => {
+    return res.send(req.query.challenge || 'ok');
+});
+
+app.post('/webhook/social/tiktok', async (req, res) => {
+    if (!verifyTikTokSignature(req)) {
+        console.warn('[webhook tiktok] assinatura invalida');
+        return res.sendStatus(403);
+    }
+    res.json({ received: true });
+
+    try {
+        const body = req.body || {};
+        const eventType = String(body.event || '').toLowerCase();
+        const openId = body.user_openid || body.open_id;
+        if (!openId) return;
+
+        const cfg = await db.findConfigByTikTokOpenId(openId);
+        if (!cfg || cfg.connection_status !== 'CONNECTED' || !cfg.enabled) return;
+
+        let content = body.content;
+        if (typeof content === 'string') {
+            try { content = JSON.parse(content); } catch { content = {}; }
+        }
+        content = content || {};
+
+        if (eventType.includes('comment')) {
+            const messageText = String(content.comment_text || content.text || '').trim();
+            if (!messageText) return;
+            await processIncomingComment({
+                schoolId: cfg.school_id,
+                platform: 'TIKTOK',
+                channel: 'POST_COMMENT',
+                senderHandle: content.author_id || content.user_id || null,
+                senderName: content.author_username || null,
+                messageText,
+                postPermalink: content.video_id ? `https://www.tiktok.com/@/video/${content.video_id}` : null,
+                messagePermalink: null,
+                metadata: { comment_id: content.comment_id, video_id: content.video_id, event: eventType, raw: content }
+            });
+        }
+    } catch (err) {
+        console.error('[webhook tiktok] erro processando:', err.message);
+    }
+});
+
 app.post('/webhook/social/linkedin', (req, res) => res.json({ received: true }));
 
 // ─── Start ────────────────────────────────────────────────────────────────────

@@ -331,6 +331,29 @@ async function getConfig(schoolId, platform) {
     return rows[0] || null;
 }
 
+async function findConfigByMetaId(metaId) {
+    const id = String(metaId || '').trim();
+    if (!id) return null;
+    const rows = await sql`
+        SELECT * FROM social_channel_configs
+        WHERE platform IN ('INSTAGRAM', 'FACEBOOK')
+          AND (metadata->>'page_id' = ${id} OR metadata->>'instagram_business_id' = ${id})
+        LIMIT 1
+    `;
+    return rows[0] || null;
+}
+
+async function findConfigByTikTokOpenId(openId) {
+    const id = String(openId || '').trim();
+    if (!id) return null;
+    const rows = await sql`
+        SELECT * FROM social_channel_configs
+        WHERE platform = 'TIKTOK' AND metadata->>'tiktok_account_id' = ${id}
+        LIMIT 1
+    `;
+    return rows[0] || null;
+}
+
 async function upsertConfig(schoolId, platform, fields) {
     await sql`
         INSERT INTO social_channel_configs (id, school_id, platform)
@@ -899,7 +922,7 @@ async function cancelScheduledPost(id, schoolId) {
 
 module.exports = {
     sql, ensureSchema,
-    ensureAllSocialPlatforms, getConfig, upsertConfig,
+    ensureAllSocialPlatforms, getConfig, upsertConfig, findConfigByMetaId, findConfigByTikTokOpenId,
     insertMessage, updateMessage, updateMessageForSchool, getRecentMessages, countMessages,
     insertAlert, getOpenAlerts, closeAlertsForMessage, setAlertsInProgress,
     getReplyConfig, upsertReplyConfig,
